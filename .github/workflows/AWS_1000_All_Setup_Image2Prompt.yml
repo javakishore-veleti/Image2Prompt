@@ -51,6 +51,12 @@ on:
       openrouter_api_key:
         description: OpenRouter API key (optional)
         default: ""
+      mistral_api_key:
+        description: Mistral API key (optional)
+        default: ""
+      cohere_api_key:
+        description: Cohere API key (optional)
+        default: ""
       image_tag:
         description: Image tag to build and deploy
         default: latest
@@ -86,6 +92,8 @@ jobs:
           AZURE_OPENAI_API_KEY: ${{ inputs.azure_openai_api_key }}
           STRIPE_API_KEY: ${{ inputs.stripe_api_key }}
           OPENROUTER_API_KEY: ${{ inputs.openrouter_api_key }}
+          MISTRAL_API_KEY: ${{ inputs.mistral_api_key }}
+          COHERE_API_KEY: ${{ inputs.cohere_api_key }}
         run: |
           set -e
           aws cloudformation deploy --stack-name img2pmpt-secrets \
@@ -102,11 +110,14 @@ jobs:
             --arg AZURE_OPENAI_ENDPOINT "$AZURE_OPENAI_ENDPOINT" \
             --arg AZURE_OPENAI_API_KEY "$AZURE_OPENAI_API_KEY" \
             --arg STRIPE_API_KEY "$STRIPE_API_KEY" \
-            --arg OPENROUTER_API_KEY "$OPENROUTER_API_KEY" '
+            --arg OPENROUTER_API_KEY "$OPENROUTER_API_KEY" \
+            --arg MISTRAL_API_KEY "$MISTRAL_API_KEY" \
+            --arg COHERE_API_KEY "$COHERE_API_KEY" '
             reduce ({OPENAI_API_KEY:$OPENAI_API_KEY, ANTHROPIC_API_KEY:$ANTHROPIC_API_KEY,
                      GOOGLE_API_KEY:$GOOGLE_API_KEY, AZURE_OPENAI_ENDPOINT:$AZURE_OPENAI_ENDPOINT,
                      AZURE_OPENAI_API_KEY:$AZURE_OPENAI_API_KEY, STRIPE_API_KEY:$STRIPE_API_KEY,
-                     OPENROUTER_API_KEY:$OPENROUTER_API_KEY}
+                     OPENROUTER_API_KEY:$OPENROUTER_API_KEY, MISTRAL_API_KEY:$MISTRAL_API_KEY,
+                     COHERE_API_KEY:$COHERE_API_KEY}
                     | to_entries[]) as $kv
                     (.; if $kv.value != "" then . + {($kv.key): $kv.value} else . end)
           ' > /tmp/secret.json

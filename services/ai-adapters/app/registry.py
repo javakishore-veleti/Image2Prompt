@@ -4,13 +4,16 @@ from .config import settings
 from .controllers.anthropic_ctrl import AnthropicController
 from .controllers.base import ProviderController
 from .controllers.bedrock import BedrockController
+from .controllers.cohere_ctrl import CohereController
 from .controllers.crewai_ctrl import CrewAIController
 from .controllers.google_ctrl import GoogleController
 from .controllers.langgraph_ctrl import LangGraphController
 from .controllers.litellm_ctrl import LiteLLMController
 from .controllers.llamaindex_ctrl import LlamaIndexController
 from .controllers.microsoft_ctrl import MicrosoftController
+from .controllers.mistral_ctrl import MistralController
 from .controllers.mock import MockController
+from .controllers.ollama_ctrl import OllamaController
 from .controllers.openai_ctrl import OpenAIController
 from .controllers.openrouter_ctrl import OpenRouterController
 from .controllers.strands import StrandsController
@@ -40,6 +43,9 @@ def build_registry() -> dict[str, ProviderController]:
             api_version=settings.azure_openai_api_version,
             deployment=settings.azure_openai_deployment,
         ),
+        MistralController(api_key=settings.mistral_api_key, model=settings.mistral_model),
+        CohereController(api_key=settings.cohere_api_key, model=settings.cohere_model),
+        OllamaController(base_url=settings.ollama_base_url, model=settings.ollama_model),
         OpenRouterController(),
         LiteLLMController(),
     ]

@@ -33,11 +33,11 @@ browse/search generated prompts, plus an admin portal to manage providers and cu
                   │                         │ POST /invoke
               Postgres                ┌─────▼──────────┐
           (db per service)           │  ai-adapters   │ :8003  provider registry
-                                      │ 12 providers   │  feature-toggled controllers
+                                      │ 15 providers   │  feature-toggled controllers
                                       │ all real:      │  bedrock·anthropic·openai·google·
-                                      │ mock works     │  microsoft·langgraph·crewai·
-                                      │ offline        │  llamaindex·strands·mock + routers
-                                      └────────────────┘  openrouter·litellm (via caf-routers)
+                                      │ mock works     │  microsoft·mistral·cohere·ollama·
+                                      │ offline        │  langgraph·crewai·llamaindex·strands·
+                                      └────────────────┘  mock + routers openrouter·litellm
 ```
 
 **Provider selection cascade** (most specific wins): per-request override → customer

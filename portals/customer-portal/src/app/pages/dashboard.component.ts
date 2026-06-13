@@ -48,17 +48,22 @@ import { ApiService, ProcRequest } from '../core/api.service';
       </div>
 
       <div class="card" *ngIf="result() as r">
-        <h3>Result <span class="muted">({{ r.status }})</span></h3>
-        <div *ngFor="let p of r.providers" class="provider-out">
-          <div class="provider-head">
-            <strong>{{ p.provider_key }}</strong>
-            <span [class.ok]="p.status === 'success'" [class.error]="p.status !== 'success'">
-              {{ p.status }}
-            </span>
-            <span class="muted" *ngIf="p.latency_ms != null">· {{ p.latency_ms }}ms</span>
+        <h3>
+          {{ r.providers.length > 1 ? 'Comparison' : 'Result' }}
+          <span class="muted">({{ r.providers.length }} provider{{ r.providers.length === 1 ? '' : 's' }} · {{ r.status }})</span>
+        </h3>
+        <div class="result-grid" [class.single]="r.providers.length === 1">
+          <div *ngFor="let p of r.providers" class="provider-out">
+            <div class="provider-head">
+              <strong>{{ p.provider_key }}</strong>
+              <span [class.ok]="p.status === 'success'" [class.error]="p.status !== 'success'">
+                {{ p.status }}
+              </span>
+              <span class="muted" *ngIf="p.latency_ms != null">· {{ p.latency_ms }}ms</span>
+            </div>
+            <p *ngIf="p.output_text" class="output-box">{{ p.output_text }}</p>
+            <p *ngIf="p.error" class="error small">{{ p.error.message || p.error.type }}</p>
           </div>
-          <p *ngIf="p.output_text" class="output-box">{{ p.output_text }}</p>
-          <p *ngIf="p.error" class="error small">{{ p.error.message || p.error.type }}</p>
         </div>
       </div>
     </div>
@@ -72,7 +77,10 @@ import { ApiService, ProcRequest } from '../core/api.service';
       .providers { display: flex; flex-wrap: wrap; gap: 8px 16px; }
       .chk { display: flex; align-items: center; gap: 6px; font-weight: 500; }
       .chk input { width: auto; }
-      .provider-out { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 12px; }
+      .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+      .result-grid.single { grid-template-columns: 1fr; }
+      @media (max-width: 700px) { .result-grid { grid-template-columns: 1fr; } }
+      .provider-out { border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
       .provider-head { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
       .output-box {
         background: var(--panel-2);

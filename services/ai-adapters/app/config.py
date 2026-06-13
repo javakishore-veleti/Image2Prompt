@@ -24,6 +24,17 @@ class AiAdaptersSettings(ServiceSettings):
     azure_openai_api_key: str = ""
     azure_openai_api_version: str = "2024-06-01"
     azure_openai_deployment: str = "gpt-4o"
+
+    mistral_api_key: str = ""
+    mistral_model: str = "pixtral-12b-2409"
+
+    cohere_api_key: str = ""
+    cohere_model: str = "c4ai-aya-vision-8b"
+
+    # Ollama (local): OpenAI-compatible endpoint; no API key needed.
+    ollama_base_url: str = "http://localhost:11434/v1"
+    ollama_model: str = "llava"
+
     # Routers (OpenRouter / LiteLLM) are configured by the img2pmpt-caf-routers
     # library via its own settings (CAF_ROUTERS_* + OPENROUTER_*/LITELLM_*).
 
