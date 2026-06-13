@@ -347,3 +347,14 @@ class ReencryptTokensReq(BaseReq):
 @dataclass(kw_only=True)
 class ReencryptResp(BaseResp):
     count: int = 0
+
+
+@dataclass(kw_only=True)
+class RotationStatusReq(BaseReq):
+    db: Session
+
+
+@dataclass(kw_only=True)
+class RotationStatusResp(BaseResp):
+    total: int = 0  # connections with encrypted tokens
+    stale: int = 0  # of those, not under the current key

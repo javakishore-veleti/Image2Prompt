@@ -108,6 +108,20 @@ class ProvidersFacade(BaseFacade, IProvidersFacade):
         self.log.info("re-encrypted config for %d provider(s)", changed)
         return changed
 
+    def rotation_status(self, db: Session) -> tuple[int, int]:
+        """(encrypted configs, of those not under the current key)."""
+        if not self.cipher.enabled:
+            return (0, 0)
+        total = stale = 0
+        for provider in db.scalars(select(Provider)):
+            blob = (provider.config or {}).get("_enc")
+            if not blob or not TokenCipher.is_encrypted(blob):
+                continue
+            total += 1
+            if not self.cipher.is_current(blob):
+                stale += 1
+        return (total, stale)
+
     def _decrypt_for_response(self, db: Session, provider: Provider | None) -> None:
         if provider is None:
             return

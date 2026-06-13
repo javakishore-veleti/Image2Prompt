@@ -97,4 +97,14 @@ export class ApiService {
       {},
     );
   }
+
+  rotationStatus(): Observable<RotationStatus> {
+    return this.http.get<RotationStatus>(`${this.admin}/maintenance/rotation-status`);
+  }
+}
+
+export interface RotationStatus {
+  key_id: string | null;
+  providers: { total: number; stale: number };
+  connections: { total: number; stale: number };
 }

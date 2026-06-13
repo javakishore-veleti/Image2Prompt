@@ -14,6 +14,7 @@ from ..dtos.internal_dtos import (
     GetPrefsReq,
     ListConnectionsReq,
     ReencryptTokensReq,
+    RotationStatusReq,
     SearchCustomersReq,
 )
 from ..facades.interfaces import IConnectionsFacade, IInternalFacade
@@ -31,6 +32,15 @@ def reencrypt_tokens(
 ):
     resp = ensure_ok(facade.reencrypt_tokens(ReencryptTokensReq(db=db)))
     return {"reencrypted": resp.count}
+
+
+@maintenance.get("/rotation-status")
+def rotation_status(
+    db: Session = Depends(get_db),
+    facade: IConnectionsFacade = Depends(get_connections_facade),
+):
+    resp = ensure_ok(facade.rotation_status(RotationStatusReq(db=db)))
+    return {"total": resp.total, "stale": resp.stale}
 
 
 @router.get("", response_model=list[CustomerOut])

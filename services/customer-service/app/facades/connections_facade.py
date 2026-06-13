@@ -31,6 +31,8 @@ from ..dtos.internal_dtos import (
     ListFilesReq,
     ReencryptResp,
     ReencryptTokensReq,
+    RotationStatusReq,
+    RotationStatusResp,
 )
 from ..services.connection_provider_service import BeginConnectReq, ConnectionProviderService
 from ..services.google_drive_service import (
@@ -358,3 +360,24 @@ class ConnectionsFacade(BaseFacade, IConnectionsFacade):
             req.db.commit()
         self.log.info("re-encrypted tokens for %d connection(s)", changed)
         return ReencryptResp(count=changed)
+
+    @observe("ConnectionsFacade.rotation_status")
+    def rotation_status(self, req: RotationStatusReq) -> RotationStatusResp:
+        """How many connections have encrypted tokens, and how many are NOT under
+        the current key (rotation progress)."""
+        from sqlalchemy import select
+
+        from ..models import Connection
+
+        if not self.cipher.enabled:
+            return RotationStatusResp(total=0, stale=0)
+        total = stale = 0
+        for conn in req.db.scalars(select(Connection)):
+            meta = conn.meta or {}
+            enc = [t for t in (meta.get("access_token"), meta.get("refresh_token")) if t and TokenCipher.is_encrypted(t)]
+            if not enc:
+                continue
+            total += 1
+            if any(not self.cipher.is_current(t) for t in enc):
+                stale += 1
+        return RotationStatusResp(total=total, stale=stale)

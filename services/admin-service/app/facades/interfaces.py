@@ -58,6 +58,9 @@ class IMaintenanceFacade(ABC):
     @abstractmethod
     async def reencrypt(self, req: "dto.ReencryptReq") -> "dto.ReencryptResp": ...
 
+    @abstractmethod
+    async def rotation_status(self, req: "dto.RotationStatusReq") -> "dto.RotationStatusResp": ...
+
 
 class IAnalyticsFacade(ABC):
     @abstractmethod

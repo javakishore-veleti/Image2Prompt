@@ -1,6 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ApiService, CspDashboard } from '../core/api.service';
+import { ApiService, CspDashboard, RotationStatus } from '../core/api.service';
 import { AuthService } from '../core/auth.service';
 
 @Component({
@@ -26,6 +26,28 @@ import { AuthService } from '../core/auth.service';
           <span class="mono">{{ s.directive }}</span>
           <span class="count">{{ s.count }}</span>
         </div>
+      </div>
+    </div>
+
+    <div class="card" *ngIf="rot() as r">
+      <h3>Encryption rotation</h3>
+      <p class="muted small" *ngIf="!r.key_id">Encryption is disabled (no key configured).</p>
+      <div *ngIf="r.key_id">
+        <p>Current key id: <span class="mono">{{ r.key_id }}</span></p>
+        <div class="bar" [class.warn]="r.providers.stale > 0">
+          <span>Provider configs</span>
+          <span class="count">{{ r.providers.total - r.providers.stale }}/{{ r.providers.total }} current</span>
+        </div>
+        <div class="bar" [class.warn]="r.connections.stale > 0">
+          <span>Connection tokens</span>
+          <span class="count">{{ r.connections.total - r.connections.stale }}/{{ r.connections.total }} current</span>
+        </div>
+        <p class="muted small" *ngIf="r.providers.stale + r.connections.stale > 0">
+          {{ r.providers.stale + r.connections.stale }} secret(s) still under a previous key — run Re-encrypt.
+        </p>
+        <p class="ok small" *ngIf="r.providers.stale + r.connections.stale === 0">
+          All secrets are under the current key. ✓
+        </p>
       </div>
     </div>
 
@@ -75,6 +97,7 @@ import { AuthService } from '../core/auth.service';
       .mono { font-family: monospace; font-size: 12px; }
       .trunc { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .bar { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--border); }
+      .bar.warn .count { color: #c0392b; }
       .count { font-weight: 700; color: var(--brand); }
       .head { display: flex; justify-content: space-between; align-items: center; }
       .actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
@@ -87,6 +110,7 @@ export class SecurityComponent {
   private api = inject(ApiService);
   private auth = inject(AuthService);
   data = signal<CspDashboard | null>(null);
+  rot = signal<RotationStatus | null>(null);
   loading = signal(false);
   busy = signal(false);
   maintMsg = signal('');
@@ -94,6 +118,7 @@ export class SecurityComponent {
 
   constructor() {
     this.load();
+    this.loadRotation();
   }
 
   load(): void {
@@ -105,6 +130,10 @@ export class SecurityComponent {
       },
       error: () => this.loading.set(false),
     });
+  }
+
+  loadRotation(): void {
+    this.api.rotationStatus().subscribe({ next: (r) => this.rot.set(r), error: () => {} });
   }
 
   prune(): void {
@@ -130,6 +159,7 @@ export class SecurityComponent {
       next: (r) => {
         this.busy.set(false);
         this.maintMsg.set(`Re-encrypted ${r.providers} provider config(s), ${r.connections} connection(s).`);
+        this.loadRotation();
       },
       error: () => {
         this.busy.set(false);

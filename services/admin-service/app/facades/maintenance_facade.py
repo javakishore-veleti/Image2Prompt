@@ -10,7 +10,14 @@ from image2prompt_shared.observability import observe
 from ..config import settings
 from ..dao.csp_violation_dao import CspViolationDao
 from ..dao.revoked_token_dao import RevokedTokenDao
-from ..dtos.internal_dtos import PruneReq, PruneResp, ReencryptReq, ReencryptResp
+from ..dtos.internal_dtos import (
+    PruneReq,
+    PruneResp,
+    ReencryptReq,
+    ReencryptResp,
+    RotationStatusReq,
+    RotationStatusResp,
+)
 from ..services.maintenance_service import MaintenanceService
 from .interfaces import IMaintenanceFacade
 from .providers_facade import ProvidersFacade
@@ -43,3 +50,15 @@ class MaintenanceFacade(BaseFacade, IMaintenanceFacade):
         providers = self.providers_facade.reencrypt_configs(req.db)
         connections = await self.maintenance_service.reencrypt_customer_tokens()
         return ReencryptResp(providers=providers, connections=connections)
+
+    @observe("MaintenanceFacade.rotation_status")
+    async def rotation_status(self, req: RotationStatusReq) -> RotationStatusResp:
+        p_total, p_stale = self.providers_facade.rotation_status(req.db)
+        c_total, c_stale = await self.maintenance_service.customer_rotation_status()
+        return RotationStatusResp(
+            key_id=self.providers_facade.cipher.current_key_id,
+            provider_total=p_total,
+            provider_stale=p_stale,
+            connection_total=c_total,
+            connection_stale=c_stale,
+        )

@@ -287,6 +287,49 @@ def test_token_cipher_rotation_decrypts_with_previous_key():
     assert TokenCipher("key-A").decrypt(resealed) == ""
 
 
+def test_token_cipher_key_versioning():
+    from image2prompt_shared.crypto import TokenCipher
+
+    c = TokenCipher("vkey")
+    sealed = c.encrypt("s")
+    assert sealed.startswith("enc:v2:")
+    assert TokenCipher.key_id(sealed) == TokenCipher.fingerprint("vkey")
+    assert c.is_current(sealed) is True
+
+    # a cipher whose current key differs sees it as not-current, but still decrypts
+    c2 = TokenCipher("vkey2", previous_keys=["vkey"])
+    assert c2.is_current(sealed) is False
+    assert c2.decrypt(sealed) == "s"
+
+    # legacy v1 values have no key id and are never "current"
+    assert TokenCipher.key_id("enc:v1:abc") is None
+
+
+def test_rotation_status_reports_stale(monkeypatch):
+    from app.config import settings as cfg
+    from app.di import _providers_facade
+    from image2prompt_shared.crypto import TokenCipher
+
+    # seal a provider under the old key
+    monkeypatch.setattr(cfg, "token_encryption_key", "rot-old")
+    monkeypatch.setattr(cfg, "token_encryption_key_previous", "")
+    monkeypatch.setattr(_providers_facade, "cipher", TokenCipher("rot-old"))
+    with TestClient(app) as client:
+        h = {"Authorization": f"Bearer {_login(client)}"}
+        oid = {p["key"]: p["id"] for p in client.get("/admin/providers", headers=h).json()}["anthropic"]
+        client.patch(f"/admin/providers/{oid}", json={"config": {"api_key": "x"}}, headers=h)
+
+        # rotate the current key -> the anthropic config is now stale
+        monkeypatch.setattr(cfg, "token_encryption_key", "rot-new")
+        monkeypatch.setattr(cfg, "token_encryption_key_previous", "rot-old")
+        monkeypatch.setattr(_providers_facade, "cipher", TokenCipher("rot-new", previous_keys=["rot-old"]))
+
+        rs = client.get("/admin/maintenance/rotation-status", headers=h).json()
+        assert rs["key_id"] == TokenCipher.fingerprint("rot-new")
+        assert rs["providers"]["stale"] >= 1
+        assert rs["providers"]["total"] >= rs["providers"]["stale"]
+
+
 def test_maintenance_prune_endpoint():
     with TestClient(app) as client:
         token = _login(client)

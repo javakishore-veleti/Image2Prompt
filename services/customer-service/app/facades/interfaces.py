@@ -101,6 +101,9 @@ class IConnectionsFacade(ABC):
     @abstractmethod
     def reencrypt_tokens(self, req: "dto.ReencryptTokensReq") -> "dto.ReencryptResp": ...
 
+    @abstractmethod
+    def rotation_status(self, req: "dto.RotationStatusReq") -> "dto.RotationStatusResp": ...
+
 
 class IInternalFacade(ABC):
     @abstractmethod

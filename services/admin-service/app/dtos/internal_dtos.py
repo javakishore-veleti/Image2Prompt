@@ -223,6 +223,20 @@ class ReencryptResp(BaseResp):
     connections: int = 0
 
 
+@dataclass(kw_only=True)
+class RotationStatusReq(BaseReq):
+    db: Session
+
+
+@dataclass(kw_only=True)
+class RotationStatusResp(BaseResp):
+    key_id: Optional[str] = None
+    provider_total: int = 0
+    provider_stale: int = 0
+    connection_total: int = 0
+    connection_stale: int = 0
+
+
 # --- analytics ---
 @dataclass(kw_only=True)
 class FetchAnalyticsReq(BaseReq):
