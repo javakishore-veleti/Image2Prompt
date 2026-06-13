@@ -191,6 +191,40 @@ cd services/ai-adapters               && python -m pytest   # mock success, stub
 cd services/image-processing-service  && python -m pytest   # orchestration (stubbed remotes)
 ```
 
+## AWS deployment (CloudFormation + ECS Fargate)
+
+Deployed via **manual** GitHub Actions (Actions tab → Run workflow) that drive
+**CloudFormation** stacks. Nothing triggers automatically.
+
+**One-time:** add repo secrets `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
+Each workflow takes an `aws_region` input (default `us-east-1`).
+
+**All-in-one:** run **`AWS_1000_All_Setup_Image2Prompt`** to deploy everything in
+order; **`AWS_1001_All_Destroy_Image2Prompt`** to tear it all down (reverse order).
+
+**Per-module** (numbered, each a Setup/Destroy pair):
+
+| Module | Stack | What |
+|---|---|---|
+| `AWS_001_Setup_Network`  | img2pmpt-network  | VPC + subnets + SGs. Reuses an **existing VPC** if you pass `existing_vpc_id` (+ subnet IDs), else creates one. |
+| `AWS_002_Setup_Secrets`  | img2pmpt-secrets  | Secrets Manager bundle (`img2pmpt/app`) — the CAF `aws` provider reads it. |
+| `AWS_003_Setup_Database` | img2pmpt-database | RDS PostgreSQL; then patches `DATABASE_URL` into the secret. |
+| `AWS_004_Setup_Registry` | img2pmpt-registry | ECR repos. |
+| `AWS_005_Setup_Compute`  | img2pmpt-compute  | Builds/pushes 5 service images, then ECS cluster + ALB + Cloud Map + services. |
+| `AWS_006_Setup_Portals`  | img2pmpt-portals  | Builds/pushes the portals image, then the portals Fargate service. |
+
+**Runtime shape:** one ALB — `/api/*` → **gateway**, everything else → **portals**
+(one task serving both Angular apps). Internal services talk over **Cloud Map**
+DNS (`*.img2pmpt.local`). Desired counts: gateway 2, customer 1, admin 1,
+**ai-adapters 2**, **image-processing 2**, portals 1 (all CFN parameters).
+Services read JWT/DB/admin secrets at runtime through the CAF `aws` provider (the
+task role can read the secret) — no secrets baked into images. After
+`AWS_005`/`All_Setup`, the workflow log prints the ALB URL.
+
+> CloudFormation/workflows are structurally validated but not deploy-tested here
+> (no AWS account in this environment). The per-service Dockerfiles are built in
+> CI and pushed to ECR — they're never run locally.
+
 ## Scope
 
 **Built now:** customer auth + image→prompt generation (Bedrock + mock) + prompt
