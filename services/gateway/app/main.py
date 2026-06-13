@@ -55,7 +55,11 @@ PUBLIC_PATHS = {
     "/api/customer/auth/refresh",
     "/api/customer/auth/logout",
     "/api/admin/auth/logout",
+    "/api/customer/auth/forgot-password",
+    "/api/customer/auth/reset-password",
+    "/api/customer/auth/verify-email",
     "/api/customer/me/connections/google/callback",
+    "/api/customer/me/connections/onedrive/callback",
     "/health",
 }
 

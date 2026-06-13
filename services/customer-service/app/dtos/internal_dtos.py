@@ -57,6 +57,37 @@ class AuthResp(BaseResp):
     email: Optional[str] = None
 
 
+# --- password reset / email verification ---
+@dataclass(kw_only=True)
+class RequestPasswordResetReq(BaseReq):
+    db: Session
+    email: str
+
+
+@dataclass(kw_only=True)
+class ResetPasswordReq(BaseReq):
+    db: Session
+    token: str
+    new_password: str
+
+
+@dataclass(kw_only=True)
+class SendVerificationReq(BaseReq):
+    db: Session
+    customer_id: str
+
+
+@dataclass(kw_only=True)
+class VerifyEmailReq(BaseReq):
+    db: Session
+    token: str
+
+
+@dataclass(kw_only=True)
+class MessageResp(BaseResp):
+    message: str = ""
+
+
 # --- customer crud ---
 @dataclass(kw_only=True)
 class GetByEmailReq(BaseReq):

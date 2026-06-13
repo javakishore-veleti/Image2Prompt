@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import JSON, BigInteger, String
+from sqlalchemy import JSON, BigInteger, Boolean, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from image2prompt_shared.base import TimestampMixin, UUIDPkMixin
@@ -15,6 +15,7 @@ class Customer(Base, UUIDPkMixin, TimestampMixin):
     password_hash: Mapped[str] = mapped_column(String(255))
     name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     status: Mapped[str] = mapped_column(String(50), default="active")
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
 
 
 class CustomerPreference(Base, UUIDPkMixin, TimestampMixin):
@@ -65,3 +66,6 @@ class RevokedToken(Base, UUIDPkMixin, TimestampMixin):
     jti: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     expires_at: Mapped[int] = mapped_column(BigInteger, default=0)  # token exp (epoch seconds)
     reason: Mapped[str] = mapped_column(String(50), default="revoked")
+    # The token family this jti belongs to. Reuse of a rotated refresh token
+    # revokes the whole family (all descendants), not just the presented token.
+    family_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)

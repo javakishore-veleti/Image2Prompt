@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import jwt
 
+from image2prompt_shared.crypto import TokenCipher
 from image2prompt_shared.layers import BaseFacade
 from image2prompt_shared.observability import observe
 from image2prompt_shared.security import create_access_token, decode_token
@@ -37,6 +38,13 @@ from ..services.google_drive_service import (
     ExchangeReq,
     GoogleDriveService,
 )
+from ..services.onedrive_service import (
+    OneDriveAuthorizeUrlReq,
+    OneDriveDownloadReq,
+    OneDriveExchangeReq,
+    OneDriveListReq,
+    OneDriveService,
+)
 
 # 1x1 transparent PNG — stand-in content for mock connection files.
 _PLACEHOLDER_PNG = base64.b64decode(
@@ -53,12 +61,33 @@ class ConnectionsFacade(BaseFacade, IConnectionsFacade):
         customer_dao: CustomerDao,
         provider_service: ConnectionProviderService,
         google_drive_service: GoogleDriveService,
+        onedrive_service: OneDriveService,
     ) -> None:
         super().__init__()
         self.connection_dao = connection_dao
         self.customer_dao = customer_dao
         self.provider_service = provider_service
         self.google_drive = google_drive_service
+        self.onedrive = onedrive_service
+        # Encrypts OAuth tokens before they touch the DB (no-op if no key set).
+        self.cipher = TokenCipher(settings.token_encryption_key)
+
+    # --- token-at-rest helpers ------------------------------------------------
+    def _seal_meta(self, meta: dict) -> dict:
+        """Return a copy of meta with token fields encrypted (if a key is set)."""
+        out = dict(meta)
+        for k in ("access_token", "refresh_token"):
+            if out.get(k):
+                out[k] = self.cipher.encrypt(out[k])
+        return out
+
+    def _open_meta(self, meta: dict) -> dict:
+        """Return a copy of meta with token fields decrypted for use."""
+        out = dict(meta)
+        for k in ("access_token", "refresh_token"):
+            if out.get(k):
+                out[k] = self.cipher.decrypt(out[k])
+        return out
 
     @observe("ConnectionsFacade.connect", metric="connection.connect")
     def connect(self, req: ConnectReq) -> ConnectionResp:
@@ -120,12 +149,60 @@ class ConnectionsFacade(BaseFacade, IConnectionsFacade):
                 provider="google_drive",
                 display_name="Google Drive",
                 account_email=ex.email,
-                meta={
+                meta=self._seal_meta({
                     "real": True,
                     "access_token": ex.access_token,
                     "refresh_token": ex.refresh_token,
                     "expires_at": ex.expires_at,
-                },
+                }),
+            )
+        )
+        req.db.commit()
+        return resp
+
+    # ---------------- Real OneDrive (Microsoft Graph) OAuth ----------------
+    @observe("ConnectionsFacade.onedrive_authorize")
+    def onedrive_authorize(self, req: GoogleAuthorizeReq) -> GoogleAuthorizeResp:
+        state = create_access_token(
+            subject=req.customer_id,
+            token_type="oauth_state",
+            email="",
+            secret=settings.jwt_secret,
+            algorithm=settings.jwt_algorithm,
+            expire_minutes=10,
+        )
+        url = self.onedrive.authorize_url(OneDriveAuthorizeUrlReq(state=state))
+        if not url.configured:
+            return GoogleAuthorizeResp.failure(
+                error_code="not_configured", error_message="OneDrive OAuth is not configured"
+            )
+        return GoogleAuthorizeResp(configured=True, authorize_url=url.url)
+
+    @observe("ConnectionsFacade.onedrive_callback")
+    def onedrive_callback(self, req: GoogleCallbackReq) -> ConnectionResp:
+        try:
+            claims = decode_token(req.state, secret=settings.jwt_secret, algorithm=settings.jwt_algorithm)
+        except jwt.PyJWTError:
+            return ConnectionResp.failure(error_code="unauthorized", error_message="Invalid OAuth state")
+        if claims.get("typ") != "oauth_state":
+            return ConnectionResp.failure(error_code="unauthorized", error_message="Bad OAuth state")
+        customer_id = claims.get("sub", "")
+        ex = self.onedrive.exchange_code(OneDriveExchangeReq(code=req.code))
+        if not ex.success:
+            return ConnectionResp.failure(error_code=ex.error_code or "provider_error", error_message=ex.error_message)
+        resp = self.connection_dao.create(
+            CreateConnectionReq(
+                db=req.db,
+                customer_id=customer_id,
+                provider="onedrive",
+                display_name="OneDrive",
+                account_email=ex.email,
+                meta=self._seal_meta({
+                    "real": True,
+                    "access_token": ex.access_token,
+                    "refresh_token": ex.refresh_token,
+                    "expires_at": ex.expires_at,
+                }),
             )
         )
         req.db.commit()
@@ -151,24 +228,47 @@ class ConnectionsFacade(BaseFacade, IConnectionsFacade):
             return FileContentResp.failure(error_code=got.error_code, error_message=got.error_message)
         conn = got.connection
         meta = conn.meta or {}
+        tokens = self._open_meta(meta)  # decrypted view for provider calls
         if conn.provider == "google_drive" and meta.get("real"):
             dl = self.google_drive.download_file(
                 DriveDownloadReq(
-                    access_token=meta.get("access_token", ""),
-                    refresh_token=meta.get("refresh_token", ""),
+                    access_token=tokens.get("access_token", ""),
+                    refresh_token=tokens.get("refresh_token", ""),
                     file_id=req.file_id,
                 )
             )
             if not dl.success:
                 return FileContentResp.failure(error_code=dl.error_code, error_message=dl.error_message)
             if dl.refreshed and dl.access_token:
-                meta["access_token"] = dl.access_token
-                meta["expires_at"] = dl.expires_at
-                conn.meta = dict(meta)
-                req.db.commit()
+                self._persist_refreshed_token(req, conn, tokens, dl.access_token, dl.expires_at)
+            return FileContentResp(content=dl.content, content_type=dl.content_type)
+        if conn.provider == "onedrive" and meta.get("real"):
+            dl = self.onedrive.download_file(
+                OneDriveDownloadReq(
+                    access_token=tokens.get("access_token", ""),
+                    refresh_token=tokens.get("refresh_token", ""),
+                    file_id=req.file_id,
+                )
+            )
+            if not dl.success:
+                return FileContentResp.failure(error_code=dl.error_code, error_message=dl.error_message)
+            if dl.refreshed and dl.access_token:
+                self._persist_refreshed_token(req, conn, tokens, dl.access_token, dl.expires_at)
             return FileContentResp(content=dl.content, content_type=dl.content_type)
         # Mock connections: return a placeholder image so the generate flow works.
         return FileContentResp(content=_PLACEHOLDER_PNG, content_type="image/png")
+
+    def _persist_refreshed_token(self, req, conn, opened_meta: dict, access_token: str, expires_at: int) -> None:
+        """Store a provider-refreshed access token back on the connection (re-sealed).
+
+        ``opened_meta`` must be the *decrypted* meta so we don't double-encrypt the
+        refresh token that's already in it.
+        """
+        updated = dict(opened_meta)
+        updated["access_token"] = access_token
+        updated["expires_at"] = expires_at
+        conn.meta = self._seal_meta(updated)
+        req.db.commit()
 
     @observe("ConnectionsFacade.list_files")
     def list_files(self, req: ListFilesReq) -> FileListResp:
@@ -179,25 +279,40 @@ class ConnectionsFacade(BaseFacade, IConnectionsFacade):
             return FileListResp.failure(error_code=got.error_code, error_message=got.error_message)
         conn = got.connection
         meta = conn.meta or {}
+        tokens = self._open_meta(meta)  # decrypted view for provider calls
 
         # Live Google Drive listing for real connections.
         if conn.provider == "google_drive" and meta.get("real"):
             drive = self.google_drive.list_files(
                 DriveListReq(
-                    access_token=meta.get("access_token", ""),
-                    refresh_token=meta.get("refresh_token", ""),
+                    access_token=tokens.get("access_token", ""),
+                    refresh_token=tokens.get("refresh_token", ""),
                     search=req.search,
                 )
             )
             if not drive.success:
                 return FileListResp.failure(error_code=drive.error_code, error_message=drive.error_message)
             if drive.refreshed and drive.access_token:  # persist refreshed token
-                meta["access_token"] = drive.access_token
-                meta["expires_at"] = drive.expires_at
-                conn.meta = dict(meta)
-                req.db.commit()
+                self._persist_refreshed_token(req, conn, tokens, drive.access_token, drive.expires_at)
             return FileListResp(
                 files=[FileItem(id=f["id"], name=f["name"], mime_type=f["mime_type"], size=f["size"]) for f in drive.files]
+            )
+
+        # Live OneDrive listing for real connections.
+        if conn.provider == "onedrive" and meta.get("real"):
+            od = self.onedrive.list_files(
+                OneDriveListReq(
+                    access_token=tokens.get("access_token", ""),
+                    refresh_token=tokens.get("refresh_token", ""),
+                    search=req.search,
+                )
+            )
+            if not od.success:
+                return FileListResp.failure(error_code=od.error_code, error_message=od.error_message)
+            if od.refreshed and od.access_token:
+                self._persist_refreshed_token(req, conn, tokens, od.access_token, od.expires_at)
+            return FileListResp(
+                files=[FileItem(id=f["id"], name=f["name"], mime_type=f["mime_type"], size=f["size"]) for f in od.files]
             )
 
         # Mock providers: stored sample files.

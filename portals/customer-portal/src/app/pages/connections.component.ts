@@ -1,6 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Observable } from 'rxjs';
 import { ApiService, Connection, DriveFile, ProcRequest } from '../core/api.service';
 
 @Component({
@@ -13,7 +14,7 @@ import { ApiService, Connection, DriveFile, ProcRequest } from '../core/api.serv
       <p class="muted">Connect a cloud drive to browse images. (OAuth is mocked in this build.)</p>
       <div class="connect-row">
         <button *ngFor="let p of available" class="ghost" (click)="connectProvider(p.key)" [disabled]="busy()">
-          + {{ p.label }}{{ p.key === 'google_drive' ? ' (OAuth)' : '' }}
+          + {{ p.label }}{{ (p.key === 'google_drive' || p.key === 'onedrive') ? ' (OAuth)' : '' }}
         </button>
       </div>
       <p class="error" *ngIf="error()">{{ error() }}</p>
@@ -92,18 +93,26 @@ export class ConnectionsComponent {
   connectProvider(provider: string): void {
     if (provider === 'google_drive') {
       // Real OAuth: get the consent URL, then send the browser to Google.
-      this.error.set('');
-      this.busy.set(true);
-      this.api.googleAuthorize().subscribe({
-        next: (r) => (window.location.href = r.authorize_url),
-        error: (err) => {
-          this.busy.set(false);
-          this.error.set(err?.error?.detail ?? 'Google is not configured');
-        },
-      });
+      this.startOAuth(this.api.googleAuthorize(), 'Google is not configured');
+      return;
+    }
+    if (provider === 'onedrive') {
+      this.startOAuth(this.api.onedriveAuthorize(), 'OneDrive is not configured');
       return;
     }
     this.connect(provider);
+  }
+
+  private startOAuth(req: Observable<{ authorize_url: string }>, fallbackErr: string): void {
+    this.error.set('');
+    this.busy.set(true);
+    req.subscribe({
+      next: (r) => (window.location.href = r.authorize_url),
+      error: (err) => {
+        this.busy.set(false);
+        this.error.set(err?.error?.detail ?? fallbackErr);
+      },
+    });
   }
 
   connect(provider: string): void {

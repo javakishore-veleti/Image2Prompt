@@ -44,6 +44,20 @@ class ServiceSettings(BaseSettings):
     jwt_expire_minutes: int = 60  # short-lived access token (revocation via refresh denylist)
     jwt_refresh_expire_minutes: int = 60 * 24 * 30
 
+    # --- Encryption at rest (e.g. stored OAuth tokens) ---
+    # Empty => encryption disabled (values stored as-is). Set a long random
+    # secret in cloud to encrypt sensitive columns. See image2prompt_shared.crypto.
+    token_encryption_key: str = ""
+
+    # --- Outbound email (password reset / verification). Empty host => email is
+    # "not configured": flows still succeed but the message is logged, not sent. ---
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_use_tls: bool = True
+    smtp_from: str = "no-reply@image2prompt.io"
+
     # --- Database (shared server; one DB, one schema per service) ---
     database_url: str = (
         "postgresql+psycopg://image2prompt:image2prompt@localhost:5432/image2prompt"

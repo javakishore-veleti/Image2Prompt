@@ -5,6 +5,9 @@ import { ShellComponent } from './layout/shell.component';
 export const routes: Routes = [
   { path: 'signin', loadComponent: () => import('./pages/signin.component').then((m) => m.SigninComponent) },
   { path: 'signup', loadComponent: () => import('./pages/signup.component').then((m) => m.SignupComponent) },
+  { path: 'forgot-password', loadComponent: () => import('./pages/forgot-password.component').then((m) => m.ForgotPasswordComponent) },
+  { path: 'reset-password', loadComponent: () => import('./pages/reset-password.component').then((m) => m.ResetPasswordComponent) },
+  { path: 'verify-email', loadComponent: () => import('./pages/verify-email.component').then((m) => m.VerifyEmailComponent) },
   {
     path: '',
     component: ShellComponent,

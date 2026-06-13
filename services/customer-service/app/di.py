@@ -28,7 +28,9 @@ from .facades.payments_facade import PaymentsFacade
 from .facades.profile_facade import ProfileFacade
 from .facades.projects_facade import ProjectsFacade
 from .services.connection_provider_service import ConnectionProviderService
+from .services.email_service import EmailService
 from .services.google_drive_service import GoogleDriveService
+from .services.onedrive_service import OneDriveService
 from .services.stripe_service import StripeService
 from .services.token_service import TokenService
 
@@ -44,7 +46,9 @@ _revoked_token_dao = RevokedTokenDao()
 _token_service = TokenService()
 _connection_provider_service = ConnectionProviderService()
 _google_drive_service = GoogleDriveService()
+_onedrive_service = OneDriveService()
 _stripe_service = StripeService()
+_email_service = EmailService()
 
 # --- Facades (wired against interfaces) ---
 _auth_facade: IAuthFacade = AuthFacade(
@@ -52,6 +56,7 @@ _auth_facade: IAuthFacade = AuthFacade(
     preference_dao=_preference_dao,
     token_service=_token_service,
     revoked_token_dao=_revoked_token_dao,
+    email_service=_email_service,
 )
 _profile_facade: IProfileFacade = ProfileFacade(
     customer_dao=_customer_dao, preference_dao=_preference_dao
@@ -68,6 +73,7 @@ _connections_facade: IConnectionsFacade = ConnectionsFacade(
     customer_dao=_customer_dao,
     provider_service=_connection_provider_service,
     google_drive_service=_google_drive_service,
+    onedrive_service=_onedrive_service,
 )
 
 

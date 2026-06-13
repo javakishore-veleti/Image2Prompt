@@ -2,12 +2,21 @@ import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService, ProcRequest } from '../core/api.service';
+import { AuthService } from '../core/auth.service';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
+    <div class="verify-banner" *ngIf="showVerifyBanner()">
+      <span>📧 Verify your email to secure your account.</span>
+      <button class="ghost small-btn" (click)="sendVerification()" [disabled]="verifySending()">
+        {{ verifySending() ? 'Sending…' : 'Send verification email' }}
+      </button>
+      <span class="ok" *ngIf="verifyMsg()">{{ verifyMsg() }}</span>
+    </div>
+
     <h2 class="page-title">Generate a Reverse Prompt</h2>
     <div class="grid">
       <div class="card">
@@ -92,11 +101,23 @@ import { ApiService, ProcRequest } from '../core/api.service';
         line-height: 1.5;
       }
       code { color: var(--brand); }
+      .verify-banner {
+        display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+        background: var(--panel-2); border: 1px solid var(--border);
+        border-left: 6px solid var(--brand); border-radius: 10px;
+        padding: 10px 14px; margin-bottom: 16px;
+      }
+      .small-btn { padding: 4px 12px; font-size: 13px; }
     `,
   ],
 })
 export class DashboardComponent {
   private api = inject(ApiService);
+  private auth = inject(AuthService);
+
+  showVerifyBanner = signal(false);
+  verifySending = signal(false);
+  verifyMsg = signal('');
 
   file: File | null = null;
   instruction = 'Generate a detailed text-to-image prompt that could recreate this image.';
@@ -117,6 +138,24 @@ export class DashboardComponent {
     this.api.projects().subscribe({
       next: (p) => this.projects.set(p),
       error: () => {},
+    });
+    this.api.me().subscribe({
+      next: (me) => this.showVerifyBanner.set(me?.email_verified === false),
+      error: () => {},
+    });
+  }
+
+  sendVerification(): void {
+    this.verifySending.set(true);
+    this.auth.sendVerification().subscribe({
+      next: (r) => {
+        this.verifySending.set(false);
+        this.verifyMsg.set(r.message || 'Verification email sent.');
+      },
+      error: () => {
+        this.verifySending.set(false);
+        this.verifyMsg.set('Verification email sent.');
+      },
     });
   }
 

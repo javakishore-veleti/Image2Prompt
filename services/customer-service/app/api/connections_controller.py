@@ -47,6 +47,29 @@ def google_callback(
     return RedirectResponse(url=f"{settings.google_oauth_success_redirect}?google={status}", status_code=302)
 
 
+@router.post("/onedrive/authorize")
+def onedrive_authorize(
+    principal: Principal = Depends(current_customer),
+    db: Session = Depends(get_db),
+    facade: IConnectionsFacade = Depends(get_connections_facade),
+):
+    resp = ensure_ok(facade.onedrive_authorize(GoogleAuthorizeReq(db=db, customer_id=principal.id)))
+    return {"authorize_url": resp.authorize_url}
+
+
+@router.get("/onedrive/callback")
+def onedrive_callback(
+    code: str = Query(...),
+    state: str = Query(...),
+    db: Session = Depends(get_db),
+    facade: IConnectionsFacade = Depends(get_connections_facade),
+):
+    # Public browser redirect from Microsoft. Identity comes from the signed state.
+    resp = facade.onedrive_callback(GoogleCallbackReq(db=db, code=code, state=state))
+    status = "connected" if resp.success else "error"
+    return RedirectResponse(url=f"{settings.microsoft_oauth_success_redirect}?onedrive={status}", status_code=302)
+
+
 @router.get("", response_model=list[ConnectionOut])
 def list_connections(
     principal: Principal = Depends(current_customer),

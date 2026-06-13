@@ -21,6 +21,18 @@ class IAuthFacade(ABC):
     @abstractmethod
     def logout(self, req: "dto.LogoutReq") -> "dto.LogoutResp": ...
 
+    @abstractmethod
+    def request_password_reset(self, req: "dto.RequestPasswordResetReq") -> "dto.MessageResp": ...
+
+    @abstractmethod
+    def reset_password(self, req: "dto.ResetPasswordReq") -> "dto.MessageResp": ...
+
+    @abstractmethod
+    def send_verification_email(self, req: "dto.SendVerificationReq") -> "dto.MessageResp": ...
+
+    @abstractmethod
+    def verify_email(self, req: "dto.VerifyEmailReq") -> "dto.MessageResp": ...
+
 
 class IProfileFacade(ABC):
     @abstractmethod
@@ -67,6 +79,12 @@ class IConnectionsFacade(ABC):
 
     @abstractmethod
     def google_callback(self, req: "dto.GoogleCallbackReq") -> "dto.ConnectionResp": ...
+
+    @abstractmethod
+    def onedrive_authorize(self, req: "dto.GoogleAuthorizeReq") -> "dto.GoogleAuthorizeResp": ...
+
+    @abstractmethod
+    def onedrive_callback(self, req: "dto.GoogleCallbackReq") -> "dto.ConnectionResp": ...
 
     @abstractmethod
     def list_connections(self, req: "dto.ListConnectionsReq") -> "dto.ConnectionListResp": ...

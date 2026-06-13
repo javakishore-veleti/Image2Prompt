@@ -107,6 +107,12 @@ export class ApiService {
       {},
     );
   }
+  onedriveAuthorize(): Observable<{ authorize_url: string }> {
+    return this.http.post<{ authorize_url: string }>(
+      `${this.customer}/me/connections/onedrive/authorize`,
+      {},
+    );
+  }
   disconnect(id: string): Observable<void> {
     return this.http.delete<void>(`${this.customer}/me/connections/${id}`);
   }

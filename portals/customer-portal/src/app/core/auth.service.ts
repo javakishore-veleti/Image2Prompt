@@ -50,6 +50,25 @@ export class AuthService {
       .pipe(tap((res) => this.persist(res)));
   }
 
+  forgotPassword(email: string): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${this.base}/forgot-password`, { email });
+  }
+
+  resetPassword(token: string, newPassword: string): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${this.base}/reset-password`, {
+      token,
+      new_password: newPassword,
+    });
+  }
+
+  sendVerification(): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${this.base}/send-verification`, {});
+  }
+
+  verifyEmail(token: string): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${this.base}/verify-email`, { token });
+  }
+
   logout(): void {
     const rt = this.refreshTokenValue;
     if (rt) {

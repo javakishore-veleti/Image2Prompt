@@ -31,12 +31,30 @@ class TokenResponse(BaseModel):
     email: str
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+
+class MessageResponse(BaseModel):
+    message: str
+
+
 class CustomerOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
     email: str
     name: str | None = None
     status: str
+    email_verified: bool = False
 
 
 class PreferenceOut(BaseModel):
