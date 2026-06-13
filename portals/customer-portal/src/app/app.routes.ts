@@ -21,6 +21,7 @@ export const routes: Routes = [
       { path: 'preferences', loadComponent: () => import('./pages/preferences.component').then((m) => m.PreferencesComponent) },
       { path: 'payment-settings', loadComponent: () => import('./pages/payment-settings.component').then((m) => m.PaymentSettingsComponent) },
       { path: 'billing', loadComponent: () => import('./pages/billing.component').then((m) => m.BillingComponent) },
+      { path: 'activity', loadComponent: () => import('./pages/activity.component').then((m) => m.ActivityComponent) },
     ],
   },
   { path: '**', redirectTo: '' },

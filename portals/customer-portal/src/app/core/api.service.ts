@@ -54,6 +54,14 @@ export interface DriveFile {
   size: number;
 }
 
+export interface ActivityItem {
+  id: string;
+  created_at: string;
+  action: string;
+  target: string | null;
+  detail: Record<string, unknown>;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   private customer = `${environment.gatewayUrl}/api/customer`;
@@ -152,6 +160,10 @@ export class ApiService {
       connection_id: connectionId,
       file_id: fileId,
     });
+  }
+
+  activity(): Observable<ActivityItem[]> {
+    return this.http.get<ActivityItem[]>(`${this.customer}/me/activity`);
   }
 
   prompts(search?: string): Observable<PromptItem[]> {

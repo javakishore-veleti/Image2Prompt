@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from image2prompt_shared.dtos import BaseReq, BaseResp
 
-from ..models import Connection, Customer, CustomerPreference, PaymentSettings, Project
+from ..models import AuditLog, Connection, Customer, CustomerPreference, PaymentSettings, Project
 
 
 # --- auth ---
@@ -86,6 +86,30 @@ class VerifyEmailReq(BaseReq):
 @dataclass(kw_only=True)
 class MessageResp(BaseResp):
     message: str = ""
+
+
+# --- audit / account activity ---
+@dataclass(kw_only=True)
+class RecordAuditReq(BaseReq):
+    db: Session
+    action: str
+    actor_id: Optional[str] = None
+    actor_email: Optional[str] = None
+    target: Optional[str] = None
+    detail: dict = field(default_factory=dict)
+
+
+@dataclass(kw_only=True)
+class ListActivityReq(BaseReq):
+    db: Session
+    customer_id: str
+    customer_email: Optional[str] = None
+    limit: int = 50
+
+
+@dataclass(kw_only=True)
+class ActivityListResp(BaseResp):
+    entries: list[AuditLog] = field(default_factory=list)
 
 
 # --- customer crud ---

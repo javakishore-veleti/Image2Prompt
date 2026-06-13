@@ -12,6 +12,7 @@ from image2prompt_shared.security import (
 )
 
 from ..config import settings
+from ..dao.audit_dao import AuditDao
 from ..dao.customer_dao import CustomerDao
 from ..dao.preference_dao import PreferenceDao
 from ..dao.revoked_token_dao import (
@@ -31,6 +32,7 @@ from ..dtos.internal_dtos import (
     LogoutReq,
     LogoutResp,
     MessageResp,
+    RecordAuditReq,
     RefreshReq,
     RequestPasswordResetReq,
     ResetPasswordReq,
@@ -54,6 +56,7 @@ class AuthFacade(BaseFacade, IAuthFacade):
         token_service: TokenService,
         revoked_token_dao: RevokedTokenDao,
         email_service: EmailService,
+        audit_dao: AuditDao,
     ) -> None:
         super().__init__()
         self.customer_dao = customer_dao
@@ -61,6 +64,15 @@ class AuthFacade(BaseFacade, IAuthFacade):
         self.token_service = token_service
         self.revoked_token_dao = revoked_token_dao
         self.email_service = email_service
+        self.audit_dao = audit_dao
+
+    def _audit(self, db, action, *, actor_id=None, actor_email=None, target=None, detail=None) -> None:
+        self.audit_dao.record(
+            RecordAuditReq(
+                db=db, action=action, actor_id=actor_id, actor_email=actor_email,
+                target=target, detail=detail or {},
+            )
+        )
 
     @observe("AuthFacade.signup", metric="customer.signup")
     def signup(self, req: SignupReq) -> AuthResp:
@@ -78,6 +90,7 @@ class AuthFacade(BaseFacade, IAuthFacade):
         customer = created.customer
         # default preferences (empty provider list => use admin defaults)
         self.preference_dao.get_or_create(GetPrefsReq(db=req.db, customer_id=customer.id))
+        self._audit(req.db, "customer.signup", actor_id=customer.id, actor_email=customer.email)
         req.db.commit()
 
         tok = self.token_service.issue(IssueTokenReq(customer_id=customer.id, email=customer.email))
@@ -94,9 +107,16 @@ class AuthFacade(BaseFacade, IAuthFacade):
         customer = result.customer
         if customer is None or not verify_password(req.password, customer.password_hash):
             Metrics.counter_add("customer.login.failure")
+            self._audit(
+                req.db, "customer.login.failure",
+                actor_id=customer.id if customer else None, actor_email=req.email,
+            )
+            req.db.commit()
             return AuthResp.failure(error_code="unauthorized", error_message="Invalid credentials")
         tok = self.token_service.issue(IssueTokenReq(customer_id=customer.id, email=customer.email))
         Metrics.counter_add("customer.login.success")
+        self._audit(req.db, "customer.login.success", actor_id=customer.id, actor_email=customer.email)
+        req.db.commit()
         return AuthResp(
             access_token=tok.access_token, refresh_token=tok.refresh_token,
             customer_id=customer.id, email=customer.email,
@@ -126,6 +146,10 @@ class AuthFacade(BaseFacade, IAuthFacade):
             if family_id:
                 self.revoked_token_dao.revoke_family(
                     RevokeFamilyReq(db=req.db, family_id=family_id, expires_at=exp, reason="reuse")
+                )
+                self._audit(
+                    req.db, "customer.token_reuse_detected",
+                    actor_id=claims.get("sub"), actor_email=claims.get("email"),
                 )
                 req.db.commit()
                 self.log.warning("refresh-token reuse detected; revoked family=%s", family_id)
@@ -219,6 +243,7 @@ class AuthFacade(BaseFacade, IAuthFacade):
         self.revoked_token_dao.revoke(
             RevokeReq(db=req.db, jti=claims.get("jti", ""), expires_at=int(claims.get("exp", 0)), reason="pwd_reset")
         )
+        self._audit(req.db, "customer.password_reset", actor_id=customer.id, actor_email=customer.email)
         req.db.commit()
         self.log.info("password reset for customer_id=%s", customer.id)
         return MessageResp(message="Your password has been reset. You can now sign in.")
@@ -265,6 +290,7 @@ class AuthFacade(BaseFacade, IAuthFacade):
         self.revoked_token_dao.revoke(
             RevokeReq(db=req.db, jti=claims.get("jti", ""), expires_at=int(claims.get("exp", 0)), reason="email_verify")
         )
+        self._audit(req.db, "customer.email_verified", actor_id=customer.id, actor_email=customer.email)
         req.db.commit()
         return MessageResp(message="Email verified.")
 

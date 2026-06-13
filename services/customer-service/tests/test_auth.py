@@ -337,6 +337,40 @@ def test_oauth_tokens_encrypted_at_rest(monkeypatch):
             session.close()
 
 
+def test_account_activity_records_security_events():
+    with TestClient(app) as client:
+        s = client.post(
+            "/auth/signup", json={"email": "activity@example.com", "password": "pw123456"}
+        ).json()
+        h = {"Authorization": f"Bearer {s['access_token']}"}
+
+        # a failed login + a successful login + a mock connection
+        client.post("/auth/login", json={"email": "activity@example.com", "password": "wrong"})
+        client.post("/auth/login", json={"email": "activity@example.com", "password": "pw123456"})
+        conn = client.post("/me/connections", json={"provider": "google_drive"}, headers=h).json()
+        client.delete(f"/me/connections/{conn['id']}", headers=h)
+
+        acts = client.get("/me/activity", headers=h).json()
+        actions = [a["action"] for a in acts]
+        assert "customer.signup" in actions
+        assert "customer.login.failure" in actions
+        assert "customer.login.success" in actions
+        assert "connection.connect" in actions
+        assert "connection.disconnect" in actions
+        # /me/activity only returns the caller's own events
+        assert all(
+            a.get("action", "").startswith(("customer.", "connection.")) for a in acts
+        )
+
+        # another customer cannot see these events
+        other = client.post(
+            "/auth/signup", json={"email": "other@example.com", "password": "pw123456"}
+        ).json()
+        oh = {"Authorization": f"Bearer {other['access_token']}"}
+        other_acts = client.get("/me/activity", headers=oh).json()
+        assert not any(a["action"] in ("connection.connect", "connection.disconnect") for a in other_acts)
+
+
 def test_reencrypt_tokens_rotates_to_new_key(monkeypatch):
     """A connection sealed under key-A is re-sealed under key-B after rotation."""
     from app.config import settings as cfg

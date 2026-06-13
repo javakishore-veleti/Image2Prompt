@@ -3,17 +3,33 @@ from __future__ import annotations
 from image2prompt_shared.layers import BaseFacade
 from image2prompt_shared.observability import observe
 
+from ..dao.audit_dao import AuditDao
 from ..dao.customer_dao import CustomerDao
 from ..dao.preference_dao import PreferenceDao
-from ..dtos.internal_dtos import CustomerResp, GetByIdReq, GetPrefsReq, PrefsResp, UpdatePrefsReq
+from ..dtos.internal_dtos import (
+    ActivityListResp,
+    CustomerResp,
+    GetByIdReq,
+    GetPrefsReq,
+    ListActivityReq,
+    PrefsResp,
+    UpdatePrefsReq,
+)
 from .interfaces import IProfileFacade
 
 
 class ProfileFacade(BaseFacade, IProfileFacade):
-    def __init__(self, *, customer_dao: CustomerDao, preference_dao: PreferenceDao) -> None:
+    def __init__(
+        self, *, customer_dao: CustomerDao, preference_dao: PreferenceDao, audit_dao: AuditDao
+    ) -> None:
         super().__init__()
         self.customer_dao = customer_dao
         self.preference_dao = preference_dao
+        self.audit_dao = audit_dao
+
+    @observe("ProfileFacade.list_activity")
+    def list_activity(self, req: ListActivityReq) -> ActivityListResp:
+        return self.audit_dao.list_for_customer(req)
 
     @observe("ProfileFacade.get_me")
     def get_me(self, req: GetByIdReq) -> CustomerResp:

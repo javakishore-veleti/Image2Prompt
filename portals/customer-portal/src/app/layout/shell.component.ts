@@ -92,6 +92,7 @@ export class ShellComponent {
     { label: 'Preferences', link: '/preferences' },
     { label: 'Payment Settings', link: '/payment-settings' },
     { label: 'Billing & Receipts', link: '/billing' },
+    { label: 'Account Activity', link: '/activity' },
   ];
 
   signout(): void {

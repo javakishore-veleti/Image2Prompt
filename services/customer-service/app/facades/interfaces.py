@@ -44,6 +44,9 @@ class IProfileFacade(ABC):
     @abstractmethod
     def update_preferences(self, req: "dto.UpdatePrefsReq") -> "dto.PrefsResp": ...
 
+    @abstractmethod
+    def list_activity(self, req: "dto.ListActivityReq") -> "dto.ActivityListResp": ...
+
 
 class IProjectsFacade(ABC):
     @abstractmethod

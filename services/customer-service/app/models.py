@@ -57,6 +57,20 @@ class Connection(Base, UUIDPkMixin, TimestampMixin):
     meta: Mapped[dict] = mapped_column(JSON, default=dict)
 
 
+class AuditLog(Base, UUIDPkMixin, TimestampMixin):
+    """Append-only trail of security-relevant customer actions (login, password
+    reset, email verification, token-reuse, connection changes). ``detail`` never
+    holds secret values."""
+
+    __tablename__ = "audit_log"
+
+    actor_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    actor_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    action: Mapped[str] = mapped_column(String(64), index=True)
+    target: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    detail: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
 class RevokedToken(Base, UUIDPkMixin, TimestampMixin):
     """Denylist of revoked JWT ids (jti). Refresh tokens are revoked on logout and
     rotated on use; an access token's short TTL bounds its window."""

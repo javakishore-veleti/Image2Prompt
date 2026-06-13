@@ -8,6 +8,7 @@ from image2prompt_shared.observability import observe
 from image2prompt_shared.security import create_access_token, decode_token
 
 from ..config import settings
+from ..dao.audit_dao import AuditDao
 from ..dao.connection_dao import ConnectionDao
 from ..dao.customer_dao import CustomerDao
 import base64
@@ -29,6 +30,7 @@ from ..dtos.internal_dtos import (
     GoogleCallbackReq,
     ListConnectionsReq,
     ListFilesReq,
+    RecordAuditReq,
     ReencryptResp,
     ReencryptTokensReq,
     RotationStatusReq,
@@ -70,6 +72,7 @@ class ConnectionsFacade(BaseFacade, IConnectionsFacade):
         provider_service: ConnectionProviderService,
         google_drive_service: GoogleDriveService,
         onedrive_service: OneDriveService,
+        audit_dao: AuditDao,
     ) -> None:
         super().__init__()
         self.connection_dao = connection_dao
@@ -77,6 +80,7 @@ class ConnectionsFacade(BaseFacade, IConnectionsFacade):
         self.provider_service = provider_service
         self.google_drive = google_drive_service
         self.onedrive = onedrive_service
+        self.audit_dao = audit_dao
         # Encrypts OAuth tokens before they touch the DB (no-op if no key set).
         # Previous keys allow safe rotation (decrypt falls back to them).
         self.cipher = TokenCipher(
@@ -110,6 +114,12 @@ class ConnectionsFacade(BaseFacade, IConnectionsFacade):
         )
         if not begun.success:
             return ConnectionResp.failure(error_code=begun.error_code, error_message=begun.error_message)
+        self.audit_dao.record(
+            RecordAuditReq(
+                db=req.db, action="connection.connect", actor_id=req.customer_id,
+                actor_email=email, target=req.provider,
+            )
+        )
         resp = self.connection_dao.create(
             CreateConnectionReq(
                 db=req.db,
@@ -169,6 +179,12 @@ class ConnectionsFacade(BaseFacade, IConnectionsFacade):
                 }),
             )
         )
+        self.audit_dao.record(
+            RecordAuditReq(
+                db=req.db, action="connection.connect", actor_id=customer_id,
+                actor_email=ex.email, target="google_drive",
+            )
+        )
         req.db.commit()
         return resp
 
@@ -217,6 +233,12 @@ class ConnectionsFacade(BaseFacade, IConnectionsFacade):
                 }),
             )
         )
+        self.audit_dao.record(
+            RecordAuditReq(
+                db=req.db, action="connection.connect", actor_id=customer_id,
+                actor_email=ex.email, target="onedrive",
+            )
+        )
         req.db.commit()
         return resp
 
@@ -228,6 +250,12 @@ class ConnectionsFacade(BaseFacade, IConnectionsFacade):
     def disconnect(self, req: DisconnectReq) -> ConnectionResp:
         resp = self.connection_dao.delete(req)
         if resp.success:
+            self.audit_dao.record(
+                RecordAuditReq(
+                    db=req.db, action="connection.disconnect", actor_id=req.customer_id,
+                    target=resp.connection.provider if resp.connection else req.connection_id,
+                )
+            )
             req.db.commit()
         return resp
 

@@ -57,6 +57,15 @@ class CustomerOut(BaseModel):
     email_verified: bool = False
 
 
+class ActivityOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    created_at: Any
+    action: str
+    target: str | None = None
+    detail: dict[str, Any] = {}
+
+
 class PreferenceOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     customer_id: str
