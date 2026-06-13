@@ -141,6 +141,13 @@ export class ApiService {
     return this.http.get<ProcRequest[]>(`${this.images}/requests`);
   }
 
+  generateFromConnection(connectionId: string, fileId: string): Observable<ProcRequest> {
+    return this.http.post<ProcRequest>(`${this.images}/requests/from-connection`, {
+      connection_id: connectionId,
+      file_id: fileId,
+    });
+  }
+
   prompts(search?: string): Observable<PromptItem[]> {
     let params = new HttpParams();
     if (search) {

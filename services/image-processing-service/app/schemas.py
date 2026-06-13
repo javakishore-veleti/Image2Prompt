@@ -11,6 +11,14 @@ class AvailableProvider(BaseModel):
     name: str
 
 
+class FromConnectionRequest(BaseModel):
+    connection_id: str
+    file_id: str
+    instruction: str = "Generate a detailed text-to-image prompt that could recreate this image."
+    providers: str | None = None
+    project_id: str | None = None
+
+
 class ProviderResultOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

@@ -9,6 +9,7 @@ from .dao.stats_dao import StatsDao
 from .facades.image_facade import ImageFacade
 from .facades.interfaces import IImageFacade
 from .services.ai_dispatch_service import AiDispatchService
+from .services.connection_fetch_service import ConnectionFetchService
 from .services.provider_resolution_service import ProviderResolutionService
 from .services.storage_service import StorageService
 
@@ -22,6 +23,7 @@ _stats_dao = StatsDao()
 _resolution_service = ProviderResolutionService()
 _storage_service = StorageService(file_ref_dao=_file_ref_dao)
 _dispatch_service = AiDispatchService()
+_fetch_service = ConnectionFetchService()
 
 # Facade
 _image_facade: IImageFacade = ImageFacade(
@@ -31,6 +33,7 @@ _image_facade: IImageFacade = ImageFacade(
     proc_req_dao=_proc_req_dao,
     prompt_dao=_prompt_dao,
     stats_dao=_stats_dao,
+    fetch_service=_fetch_service,
 )
 
 

@@ -9,12 +9,16 @@ from image2prompt_shared.security import create_access_token, decode_token
 from ..config import settings
 from ..dao.connection_dao import ConnectionDao
 from ..dao.customer_dao import CustomerDao
+import base64
+
 from ..dtos.internal_dtos import (
     ConnectionListResp,
     ConnectionResp,
     ConnectReq,
     CreateConnectionReq,
     DisconnectReq,
+    DownloadFileReq,
+    FileContentResp,
     FileItem,
     FileListResp,
     GetByIdReq,
@@ -28,9 +32,15 @@ from ..dtos.internal_dtos import (
 from ..services.connection_provider_service import BeginConnectReq, ConnectionProviderService
 from ..services.google_drive_service import (
     AuthorizeUrlReq,
+    DriveDownloadReq,
     DriveListReq,
     ExchangeReq,
     GoogleDriveService,
+)
+
+# 1x1 transparent PNG — stand-in content for mock connection files.
+_PLACEHOLDER_PNG = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
 )
 from .interfaces import IConnectionsFacade
 
@@ -131,6 +141,34 @@ class ConnectionsFacade(BaseFacade, IConnectionsFacade):
         if resp.success:
             req.db.commit()
         return resp
+
+    @observe("ConnectionsFacade.download_file")
+    def download_file(self, req: DownloadFileReq) -> FileContentResp:
+        got = self.connection_dao.get(
+            GetConnectionReq(db=req.db, customer_id=req.customer_id, connection_id=req.connection_id)
+        )
+        if not got.success:
+            return FileContentResp.failure(error_code=got.error_code, error_message=got.error_message)
+        conn = got.connection
+        meta = conn.meta or {}
+        if conn.provider == "google_drive" and meta.get("real"):
+            dl = self.google_drive.download_file(
+                DriveDownloadReq(
+                    access_token=meta.get("access_token", ""),
+                    refresh_token=meta.get("refresh_token", ""),
+                    file_id=req.file_id,
+                )
+            )
+            if not dl.success:
+                return FileContentResp.failure(error_code=dl.error_code, error_message=dl.error_message)
+            if dl.refreshed and dl.access_token:
+                meta["access_token"] = dl.access_token
+                meta["expires_at"] = dl.expires_at
+                conn.meta = dict(meta)
+                req.db.commit()
+            return FileContentResp(content=dl.content, content_type=dl.content_type)
+        # Mock connections: return a placeholder image so the generate flow works.
+        return FileContentResp(content=_PLACEHOLDER_PNG, content_type="image/png")
 
     @observe("ConnectionsFacade.list_files")
     def list_files(self, req: ListFilesReq) -> FileListResp:

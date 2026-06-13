@@ -17,10 +17,12 @@ from app.dtos.internal_dtos import (  # noqa: E402
     EnabledProvidersResp,
     ListEnabledProvidersReq,
     ListPromptsReq,
+    ProcessFromConnectionReq,
     ProcessImageReq,
     ResolveProvidersResp,
     StatsReq,
 )
+from app.services.connection_fetch_service import FetchFileResp  # noqa: E402
 
 db.bootstrap(base=Base, settings=type("S", (), {"run_migrations_on_startup": False})())
 
@@ -89,6 +91,62 @@ def test_stats_after_generate(monkeypatch):
         assert stats.total_requests >= 1
         assert any(p["provider_key"] == "mock" for p in stats.providers)
         assert stats.by_status.get("completed", 0) >= 1
+    finally:
+        session.close()
+
+
+def test_process_from_connection(monkeypatch):
+    monkeypatch.setattr(_image_facade.resolution_service, "resolve", _stub_resolve())
+    monkeypatch.setattr(_image_facade.dispatch_service, "invoke", _stub_dispatch())
+
+    async def _fetch(req):
+        assert req.connection_id == "conn-1"
+        assert req.file_id == "file-1"
+        return FetchFileResp(content=b"drive-bytes", content_type="image/jpeg")
+
+    monkeypatch.setattr(_image_facade.fetch_service, "fetch", _fetch)
+
+    session = db.SessionLocal()
+    try:
+        resp = asyncio.run(
+            _image_facade.process_from_connection(
+                ProcessFromConnectionReq(
+                    db=session,
+                    customer_id="cust-conn",
+                    connection_id="conn-1",
+                    file_id="file-1",
+                    instruction="describe",
+                )
+            )
+        )
+        assert resp.success
+        assert resp.request.status == "completed"
+        assert resp.request.providers[0].output_text == "a prompt"
+        assert resp.request.meta.get("content_type") == "image/jpeg"
+    finally:
+        session.close()
+
+
+def test_process_from_connection_fetch_failure(monkeypatch):
+    async def _fetch_fail(req):
+        return FetchFileResp(success=False, error_code="upstream_error", error_message="boom")
+
+    monkeypatch.setattr(_image_facade.fetch_service, "fetch", _fetch_fail)
+    session = db.SessionLocal()
+    try:
+        resp = asyncio.run(
+            _image_facade.process_from_connection(
+                ProcessFromConnectionReq(
+                    db=session,
+                    customer_id="cust-conn",
+                    connection_id="conn-x",
+                    file_id="file-x",
+                    instruction="describe",
+                )
+            )
+        )
+        assert not resp.success
+        assert resp.error_code == "upstream_error"
     finally:
         session.close()
 

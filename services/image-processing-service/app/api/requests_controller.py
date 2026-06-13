@@ -10,9 +10,14 @@ from image2prompt_shared.auth_dep import Principal
 
 from ..deps import current_customer, get_db
 from ..di import get_image_facade
-from ..dtos.internal_dtos import GetRequestReq, ListRequestsReq, ProcessImageReq
+from ..dtos.internal_dtos import (
+    GetRequestReq,
+    ListRequestsReq,
+    ProcessFromConnectionReq,
+    ProcessImageReq,
+)
 from ..facades.interfaces import IImageFacade
-from ..schemas import ProcReqOut
+from ..schemas import FromConnectionRequest, ProcReqOut
 
 router = APIRouter(prefix="/requests", tags=["requests"])
 
@@ -56,6 +61,29 @@ async def create_request(
                 instruction=instruction,
                 project_id=project_id,
                 requested_providers=_parse_providers(providers),
+            )
+        )
+    )
+    return resp.request
+
+
+@router.post("/from-connection", response_model=ProcReqOut, status_code=201)
+async def create_from_connection(
+    payload: FromConnectionRequest,
+    principal: Principal = Depends(current_customer),
+    db: Session = Depends(get_db),
+    facade: IImageFacade = Depends(get_image_facade),
+):
+    resp = ensure_ok(
+        await facade.process_from_connection(
+            ProcessFromConnectionReq(
+                db=db,
+                customer_id=principal.id,
+                connection_id=payload.connection_id,
+                file_id=payload.file_id,
+                instruction=payload.instruction,
+                project_id=payload.project_id,
+                requested_providers=_parse_providers(payload.providers),
             )
         )
     )

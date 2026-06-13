@@ -1,7 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ApiService, Connection, DriveFile } from '../core/api.service';
+import { ApiService, Connection, DriveFile, ProcRequest } from '../core/api.service';
 
 @Component({
   selector: 'app-connections',
@@ -33,8 +33,18 @@ import { ApiService, Connection, DriveFile } from '../core/api.service';
         <button class="ghost" (click)="loadFiles(c)">Browse</button>
       </div>
       <ul *ngIf="files()[c.id]?.length">
-        <li *ngFor="let f of files()[c.id]">{{ f.name }} <span class="muted">({{ f.mime_type }})</span></li>
+        <li *ngFor="let f of files()[c.id]">
+          {{ f.name }} <span class="muted">({{ f.mime_type }})</span>
+          <button class="link" (click)="generate(c, f)" [disabled]="generating()">Generate</button>
+        </li>
       </ul>
+    </div>
+
+    <div class="card" *ngIf="result() as r">
+      <h3>Generated from connection <span class="muted">({{ r.status }})</span></h3>
+      <p class="output-box" *ngFor="let p of r.providers">
+        <strong>{{ p.provider_key }}:</strong> {{ p.output_text || (p.error?.message || p.error?.type) }}
+      </p>
     </div>
 
     <p class="muted" *ngIf="connections().length === 0">No connections yet.</p>
@@ -47,6 +57,11 @@ import { ApiService, Connection, DriveFile } from '../core/api.service';
       .files { display: flex; gap: 10px; max-width: 480px; margin-bottom: 8px; }
       ul { margin: 0; padding-left: 18px; }
       li { margin: 3px 0; }
+      .link { background: none; border: none; color: var(--brand); padding: 0 0 0 8px; box-shadow: none; font-weight: 600; }
+      .output-box {
+        background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+        border-left: 6px solid var(--brand); border-radius: 10px; padding: 12px; line-height: 1.5;
+      }
     `,
   ],
 })
@@ -62,6 +77,8 @@ export class ConnectionsComponent {
   files = signal<Record<string, DriveFile[]>>({});
   searchText: Record<string, string> = {};
   busy = signal(false);
+  generating = signal(false);
+  result = signal<ProcRequest | null>(null);
   error = signal('');
 
   constructor() {
@@ -112,6 +129,22 @@ export class ConnectionsComponent {
     this.api.connectionFiles(c.id, this.searchText[c.id]).subscribe({
       next: (f) => this.files.update((m) => ({ ...m, [c.id]: f })),
       error: () => {},
+    });
+  }
+
+  generate(c: Connection, f: DriveFile): void {
+    this.error.set('');
+    this.result.set(null);
+    this.generating.set(true);
+    this.api.generateFromConnection(c.id, f.id).subscribe({
+      next: (r) => {
+        this.generating.set(false);
+        this.result.set(r);
+      },
+      error: (err) => {
+        this.generating.set(false);
+        this.error.set(err?.error?.detail ?? 'Generate failed');
+      },
     });
   }
 }

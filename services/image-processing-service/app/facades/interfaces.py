@@ -10,6 +10,9 @@ class IImageFacade(ABC):
     async def process_image(self, req: "dto.ProcessImageReq") -> "dto.ProcReqResp": ...
 
     @abstractmethod
+    async def process_from_connection(self, req: "dto.ProcessFromConnectionReq") -> "dto.ProcReqResp": ...
+
+    @abstractmethod
     def list_requests(self, req: "dto.ListRequestsReq") -> "dto.ProcReqListResp": ...
 
     @abstractmethod

@@ -16,6 +16,7 @@ from ..dtos.internal_dtos import (
     ListEnabledProvidersReq,
     ListPromptsReq,
     ListRequestsReq,
+    ProcessFromConnectionReq,
     ProcessImageReq,
     ProcReqListResp,
     ProcReqResp,
@@ -26,6 +27,7 @@ from ..dtos.internal_dtos import (
     StoreImageReq,
 )
 from ..services.ai_dispatch_service import AiDispatchService
+from ..services.connection_fetch_service import ConnectionFetchService, FetchFileReq
 from ..services.provider_resolution_service import ProviderResolutionService
 from ..services.storage_service import StorageService
 from .interfaces import IImageFacade
@@ -43,6 +45,7 @@ class ImageFacade(BaseFacade, IImageFacade):
         proc_req_dao: ProcReqDao,
         prompt_dao: PromptDao,
         stats_dao: StatsDao,
+        fetch_service: ConnectionFetchService,
     ) -> None:
         super().__init__()
         self.resolution_service = resolution_service
@@ -51,6 +54,7 @@ class ImageFacade(BaseFacade, IImageFacade):
         self.proc_req_dao = proc_req_dao
         self.prompt_dao = prompt_dao
         self.stats_dao = stats_dao
+        self.fetch_service = fetch_service
 
     @observe("ImageFacade.process_image", metric="image.generate")
     async def process_image(self, req: ProcessImageReq) -> ProcReqResp:
@@ -135,6 +139,31 @@ class ImageFacade(BaseFacade, IImageFacade):
         Metrics.counter_add("image.generate", 1, {"status": proc.status})
         self.log.info("process_image done request_id=%s status=%s", proc.id, proc.status)
         return ProcReqResp(request=proc)
+
+    @observe("ImageFacade.process_from_connection", metric="image.generate_from_connection")
+    async def process_from_connection(self, req: ProcessFromConnectionReq) -> ProcReqResp:
+        fetched = await self.fetch_service.fetch(
+            FetchFileReq(
+                customer_id=req.customer_id, connection_id=req.connection_id, file_id=req.file_id
+            )
+        )
+        if not fetched.success or not fetched.content:
+            return ProcReqResp.failure(
+                error_code="upstream_error",
+                error_message=fetched.error_message or "Could not fetch the connected file",
+            )
+        return await self.process_image(
+            ProcessImageReq(
+                db=req.db,
+                customer_id=req.customer_id,
+                image_bytes=fetched.content,
+                content_type=fetched.content_type,
+                filename=f"connection-{req.file_id}",
+                instruction=req.instruction,
+                project_id=req.project_id,
+                requested_providers=req.requested_providers,
+            )
+        )
 
     @observe("ImageFacade.list_requests")
     def list_requests(self, req: ListRequestsReq) -> ProcReqListResp:

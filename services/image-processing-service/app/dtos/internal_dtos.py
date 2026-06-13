@@ -26,6 +26,17 @@ class ProcessImageReq(BaseReq):
 
 
 @dataclass(kw_only=True)
+class ProcessFromConnectionReq(BaseReq):
+    db: Session
+    customer_id: str
+    connection_id: str
+    file_id: str
+    instruction: str
+    project_id: Optional[str] = None
+    requested_providers: Optional[list[str]] = None
+
+
+@dataclass(kw_only=True)
 class ProcReqResp(BaseResp):
     request: Optional[ProcReqLog] = None
 

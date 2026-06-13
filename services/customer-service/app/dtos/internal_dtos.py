@@ -282,6 +282,20 @@ class ConnectionListResp(BaseResp):
 
 
 @dataclass(kw_only=True)
+class DownloadFileReq(BaseReq):
+    db: Session
+    customer_id: str
+    connection_id: str
+    file_id: str
+
+
+@dataclass(kw_only=True)
+class FileContentResp(BaseResp):
+    content: bytes = b""
+    content_type: str = "application/octet-stream"
+
+
+@dataclass(kw_only=True)
 class FileItem:
     id: str
     name: str

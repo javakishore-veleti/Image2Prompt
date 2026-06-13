@@ -66,6 +66,22 @@ class DriveListResp(BaseResp):
     refreshed: bool = False
 
 
+@dataclass(kw_only=True)
+class DriveDownloadReq(BaseReq):
+    access_token: str
+    refresh_token: str = ""
+    file_id: str
+
+
+@dataclass(kw_only=True)
+class DriveDownloadResp(BaseResp):
+    content: bytes = b""
+    content_type: str = "application/octet-stream"
+    access_token: str = ""
+    expires_at: int = 0
+    refreshed: bool = False
+
+
 class GoogleDriveService(BaseService):
     def is_configured(self) -> bool:
         return bool(settings.google_oauth_client_id and settings.google_oauth_client_secret)
@@ -170,3 +186,33 @@ class GoogleDriveService(BaseService):
             return DriveListResp(files=files, access_token=access, expires_at=expires_at, refreshed=refreshed)
         except Exception as exc:
             return DriveListResp(success=False, error_code="provider_error", error_message=str(exc))
+
+    @observe("GoogleDriveService.download_file")
+    def download_file(self, req: DriveDownloadReq) -> DriveDownloadResp:
+        if not self.is_configured():
+            return DriveDownloadResp(success=False, error_code="not_configured")
+        access, expires_at, refreshed = req.access_token, 0, False
+        try:
+            url = f"{_DRIVE_FILES_URL}/{req.file_id}"
+
+            def _fetch(token: str) -> httpx.Response:
+                with httpx.Client(timeout=30.0) as client:
+                    return client.get(
+                        url, params={"alt": "media"}, headers={"Authorization": f"Bearer {token}"}
+                    )
+
+            resp = _fetch(access)
+            if resp.status_code == 401 and req.refresh_token:
+                access, expires_at = self._refresh(req.refresh_token)
+                refreshed = True
+                resp = _fetch(access)
+            resp.raise_for_status()
+            return DriveDownloadResp(
+                content=resp.content,
+                content_type=resp.headers.get("content-type", "application/octet-stream"),
+                access_token=access,
+                expires_at=expires_at,
+                refreshed=refreshed,
+            )
+        except Exception as exc:
+            return DriveDownloadResp(success=False, error_code="provider_error", error_message=str(exc))

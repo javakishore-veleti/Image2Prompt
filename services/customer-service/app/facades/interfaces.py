@@ -77,6 +77,9 @@ class IConnectionsFacade(ABC):
     @abstractmethod
     def list_files(self, req: "dto.ListFilesReq") -> "dto.FileListResp": ...
 
+    @abstractmethod
+    def download_file(self, req: "dto.DownloadFileReq") -> "dto.FileContentResp": ...
+
 
 class IInternalFacade(ABC):
     @abstractmethod

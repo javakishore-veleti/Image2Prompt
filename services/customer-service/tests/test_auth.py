@@ -86,6 +86,26 @@ def test_connections_flow():
         assert client.get("/me/connections", headers=h).json() == []
 
 
+def test_internal_download_mock_connection_returns_placeholder_png():
+    with TestClient(app) as client:
+        tok = client.post(
+            "/auth/signup", json={"email": "dl@example.com", "password": "pw123456"}
+        ).json()["access_token"]
+        h = {"Authorization": f"Bearer {tok}"}
+        conn = client.post(
+            "/me/connections", json={"provider": "google_drive"}, headers=h
+        ).json()
+        cust = client.get("/me", headers=h).json()
+
+        # internal content endpoint (used by image-processing) -> placeholder PNG bytes
+        r = client.get(
+            f"/internal/customers/{cust['id']}/connections/{conn['id']}/files/any-file/content"
+        )
+        assert r.status_code == 200, r.text
+        assert r.headers["content-type"].startswith("image/png")
+        assert r.content[:8] == b"\x89PNG\r\n\x1a\n"
+
+
 def test_billing_without_stripe_is_graceful():
     with TestClient(app) as client:
         tok = client.post(

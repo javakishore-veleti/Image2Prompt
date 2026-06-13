@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 from image2prompt_shared.api_errors import ensure_ok
@@ -9,6 +9,7 @@ from ..deps import get_db
 from ..di import get_connections_facade, get_internal_facade
 from ..dtos.internal_dtos import (
     CountCustomersReq,
+    DownloadFileReq,
     GetByIdReq,
     GetPrefsReq,
     ListConnectionsReq,
@@ -72,3 +73,21 @@ def get_connections(
     return ensure_ok(
         facade.list_connections(ListConnectionsReq(db=db, customer_id=customer_id))
     ).connections
+
+
+@router.get("/{customer_id}/connections/{connection_id}/files/{file_id}/content")
+def download_connection_file(
+    customer_id: str,
+    connection_id: str,
+    file_id: str,
+    db: Session = Depends(get_db),
+    facade: IConnectionsFacade = Depends(get_connections_facade),
+):
+    resp = ensure_ok(
+        facade.download_file(
+            DownloadFileReq(
+                db=db, customer_id=customer_id, connection_id=connection_id, file_id=file_id
+            )
+        )
+    )
+    return Response(content=resp.content, media_type=resp.content_type)
