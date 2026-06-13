@@ -1,20 +1,35 @@
 from __future__ import annotations
 
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from image2prompt_shared.base import Base
+from image2prompt_shared.logging_config import configure_logging, get_logger
+from image2prompt_shared.observability import init_observability
 
+from .api import (
+    auth_controller,
+    internal_controller,
+    payments_controller,
+    profile_controller,
+    projects_controller,
+)
 from .config import settings
-from .deps import db
-from .routers import auth, internal, payments, profile, projects
+from .db import Base, db
+
+configure_logging(service_name=settings.service_name, level=settings.log_level, as_json=settings.log_json)
+init_observability(settings)
+log = get_logger(__name__)
+
+SERVICE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    db.create_all(Base)
+    log.info("starting %s (schema=%s)", settings.service_name, settings.db_schema)
+    db.bootstrap(base=Base, settings=settings, service_dir=SERVICE_DIR)
     yield
 
 
@@ -28,13 +43,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth.router)
-app.include_router(profile.router)
-app.include_router(projects.router)
-app.include_router(payments.router)
-app.include_router(internal.router)
+app.include_router(auth_controller.router)
+app.include_router(profile_controller.router)
+app.include_router(projects_controller.router)
+app.include_router(payments_controller.router)
+app.include_router(internal_controller.router)
 
 
 @app.get("/health", tags=["health"])
 def health():
-    return {"status": "ok", "service": "customer-service"}
+    return {"status": "ok", "service": settings.service_name}

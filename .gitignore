@@ -2,6 +2,11 @@
 Image2Prompt.docx
 ~$*.docx
 
+# Local dev orchestration
+/node_modules/
+DevOps/Local/.run/
+DevOps/Local/.env
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

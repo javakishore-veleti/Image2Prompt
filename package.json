@@ -1,0 +1,25 @@
+{
+  "name": "image2prompt-local-dev",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local development orchestration for Image2Prompt (containers, Python services, Angular portals). Not a publishable package.",
+  "scripts": {
+    "local:containers:start-all": "bash DevOps/Local/docker-all-up.sh",
+    "local:containers:stop-all": "bash DevOps/Local/all-down.sh",
+    "local:containers:status-all": "bash DevOps/Local/all-status.sh",
+
+    "local:services:start-all": "bash DevOps/Local/services-start-all.sh",
+    "local:services:stop-all": "bash DevOps/Local/services-stop-all.sh",
+    "local:services:status-all": "bash DevOps/Local/services-status-all.sh",
+
+    "local:portals:start-all": "bash DevOps/Local/portals-start-all.sh",
+    "local:portals:stop-all": "bash DevOps/Local/portals-stop-all.sh",
+    "local:portals:status-all": "bash DevOps/Local/portals-status-all.sh",
+
+    "local:services-ui:start-all": "npm run local:services:start-all && npm run local:portals:start-all",
+    "local:services-ui:stop-all": "npm run local:portals:stop-all && npm run local:services:stop-all",
+    "local:services-ui:status-all": "npm run local:services:status-all && npm run local:portals:status-all",
+
+    "local:shutdown:all": "bash DevOps/Local/shutdown-all.sh"
+  }
+}

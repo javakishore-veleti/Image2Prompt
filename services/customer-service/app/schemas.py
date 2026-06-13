@@ -1,3 +1,6 @@
+"""HTTP request/response models (pydantic) at the API boundary. Controllers map
+these to/from the internal ``*Req``/``*Resp`` dataclasses."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -25,7 +28,6 @@ class TokenResponse(BaseModel):
 
 class CustomerOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-
     id: str
     email: str
     name: str | None = None
@@ -34,7 +36,6 @@ class CustomerOut(BaseModel):
 
 class PreferenceOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-
     customer_id: str
     default_provider_keys: list[str] = []
     storage_backend: str = "local"
@@ -54,7 +55,6 @@ class ProjectCreate(BaseModel):
 
 class ProjectOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-
     id: str
     customer_id: str
     name: str
@@ -67,6 +67,5 @@ class PaymentSettingsUpdate(BaseModel):
 
 class PaymentSettingsOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-
     customer_id: str
     data: dict[str, Any] = {}

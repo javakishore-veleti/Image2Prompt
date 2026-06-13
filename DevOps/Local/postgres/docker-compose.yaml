@@ -1,0 +1,26 @@
+name: img2pmpt-postgres
+
+# Local Postgres for Image2Prompt. Started by docker-all-up.sh ONLY when nothing
+# is already listening on :5432, so an existing Postgres on this laptop is reused
+# instead. All service schemas (img2pmpt_admin, img2pmpt_customer, img2pmpt_image)
+# live inside the single database below and are created by Alembic on startup.
+services:
+  postgres:
+    image: postgres:16
+    container_name: img2pmpt-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-image2prompt}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-image2prompt}
+      POSTGRES_DB: ${POSTGRES_DB:-image2prompt}
+    ports:
+      - "${PG_PORT:-5432}:5432"
+    volumes:
+      - img2pmpt_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-image2prompt}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  img2pmpt_pgdata:
