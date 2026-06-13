@@ -337,3 +337,13 @@ class FileItem:
 @dataclass(kw_only=True)
 class FileListResp(BaseResp):
     files: list[FileItem] = field(default_factory=list)
+
+
+@dataclass(kw_only=True)
+class ReencryptTokensReq(BaseReq):
+    db: Session
+
+
+@dataclass(kw_only=True)
+class ReencryptResp(BaseResp):
+    count: int = 0

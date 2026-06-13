@@ -269,6 +269,80 @@ def test_csp_retention_prune_removes_old_rows():
             session.close()
 
 
+def test_token_cipher_rotation_decrypts_with_previous_key():
+    from image2prompt_shared.crypto import TokenCipher
+
+    old = TokenCipher("key-A")
+    sealed = old.encrypt("super-secret")
+    assert TokenCipher.is_encrypted(sealed)
+
+    # new current key + old as previous -> still decrypts
+    rotated = TokenCipher("key-B", previous_keys=["key-A"])
+    assert rotated.decrypt(sealed) == "super-secret"
+
+    # re-seal under the new key; a cipher with ONLY key-B can then read it,
+    # and key-A alone can no longer decrypt the new ciphertext
+    resealed = rotated.rotate(sealed)
+    assert TokenCipher("key-B").decrypt(resealed) == "super-secret"
+    assert TokenCipher("key-A").decrypt(resealed) == ""
+
+
+def test_maintenance_prune_endpoint():
+    with TestClient(app) as client:
+        token = _login(client)
+        h = {"Authorization": f"Bearer {token}"}
+        r = client.post("/admin/maintenance/prune", headers=h)
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert "revoked_tokens" in body and "csp_violations" in body
+
+
+def test_maintenance_reencrypt_reseals_providers(monkeypatch):
+    from app.config import settings as cfg
+    from app.di import _providers_facade
+    from app.db import db as admin_db
+    from app.models import Provider
+    from image2prompt_shared.crypto import TokenCipher
+    from sqlalchemy import select
+
+    # start under key-A, store a secret
+    monkeypatch.setattr(cfg, "token_encryption_key", "key-A")
+    monkeypatch.setattr(cfg, "token_encryption_key_previous", "")
+    _providers_facade.cipher = TokenCipher("key-A")
+
+    with TestClient(app) as client:
+        token = _login(client)
+        h = {"Authorization": f"Bearer {token}"}
+        oid = {p["key"]: p["id"] for p in client.get("/admin/providers", headers=h).json()}["google"]
+        client.patch(f"/admin/providers/{oid}", json={"config": {"api_key": "rotate-me"}}, headers=h)
+
+        # rotate to key-B (key-A as previous), then re-encrypt
+        monkeypatch.setattr(cfg, "token_encryption_key", "key-B")
+        monkeypatch.setattr(cfg, "token_encryption_key_previous", "key-A")
+        _providers_facade.cipher = TokenCipher("key-B", previous_keys=["key-A"])
+
+        r = client.post("/admin/maintenance/reencrypt", headers=h)
+        assert r.status_code == 200, r.text
+        assert r.json()["providers"] >= 1
+
+        # stored ciphertext now decrypts under key-B alone
+        session = admin_db.SessionLocal()
+        try:
+            row = session.scalar(select(Provider).where(Provider.id == oid))
+            blob = row.config["_enc"]
+            import json as _json
+
+            assert _json.loads(TokenCipher("key-B").decrypt(blob))["api_key"] == "rotate-me"
+        finally:
+            session.close()
+
+        # and the API still returns the (masked) config correctly
+        from app.masking import MASK
+
+        view = {p["key"]: p for p in client.get("/admin/providers", headers=h).json()}["google"]
+        assert view["config"]["api_key"] == MASK
+
+
 def test_login_rejects_bad_password():
     with TestClient(app) as client:
         r = client.post(

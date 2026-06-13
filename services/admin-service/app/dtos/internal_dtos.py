@@ -200,6 +200,29 @@ class CspStatsResp(BaseResp):
     top_directive: Optional[str] = None
 
 
+# --- maintenance ---
+@dataclass(kw_only=True)
+class PruneReq(BaseReq):
+    db: Session
+
+
+@dataclass(kw_only=True)
+class PruneResp(BaseResp):
+    revoked_tokens: int = 0
+    csp_violations: int = 0
+
+
+@dataclass(kw_only=True)
+class ReencryptReq(BaseReq):
+    db: Session
+
+
+@dataclass(kw_only=True)
+class ReencryptResp(BaseResp):
+    providers: int = 0
+    connections: int = 0
+
+
 # --- analytics ---
 @dataclass(kw_only=True)
 class FetchAnalyticsReq(BaseReq):

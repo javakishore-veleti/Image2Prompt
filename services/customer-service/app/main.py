@@ -84,6 +84,7 @@ app.include_router(projects_controller.router)
 app.include_router(payments_controller.router)
 app.include_router(connections_controller.router)
 app.include_router(internal_controller.router)
+app.include_router(internal_controller.maintenance)
 
 
 @app.get("/health", tags=["health"])

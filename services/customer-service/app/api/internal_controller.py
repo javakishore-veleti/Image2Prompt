@@ -13,12 +13,24 @@ from ..dtos.internal_dtos import (
     GetByIdReq,
     GetPrefsReq,
     ListConnectionsReq,
+    ReencryptTokensReq,
     SearchCustomersReq,
 )
 from ..facades.interfaces import IConnectionsFacade, IInternalFacade
 from ..schemas import ConnectionOut, CustomerOut, PreferenceOut
 
 router = APIRouter(prefix="/internal/customers", tags=["customers-internal"])
+# Service-to-service maintenance (trusted network) — triggered by admin-service.
+maintenance = APIRouter(prefix="/internal/maintenance", tags=["maintenance-internal"])
+
+
+@maintenance.post("/reencrypt-tokens")
+def reencrypt_tokens(
+    db: Session = Depends(get_db),
+    facade: IConnectionsFacade = Depends(get_connections_facade),
+):
+    resp = ensure_ok(facade.reencrypt_tokens(ReencryptTokensReq(db=db)))
+    return {"reencrypted": resp.count}
 
 
 @router.get("", response_model=list[CustomerOut])

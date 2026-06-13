@@ -48,6 +48,10 @@ class ServiceSettings(BaseSettings):
     # Empty => encryption disabled (values stored as-is). Set a long random
     # secret in cloud to encrypt sensitive columns. See image2prompt_shared.crypto.
     token_encryption_key: str = ""
+    # Previous key(s) for rotation: decryption falls back to these so changing
+    # the key doesn't orphan stored data. Comma-separated; run the re-encrypt
+    # maintenance action, then drop the old key here.
+    token_encryption_key_previous: str = ""
 
     # --- Outbound email (password reset / verification). Empty host => email is
     # "not configured": flows still succeed but the message is logged, not sent. ---

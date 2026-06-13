@@ -83,4 +83,18 @@ export class ApiService {
     let params = new HttpParams().set('limit', String(limit));
     return this.http.get<CspDashboard>(`${this.admin}/csp-violations`, { params });
   }
+
+  pruneNow(): Observable<{ revoked_tokens: number; csp_violations: number }> {
+    return this.http.post<{ revoked_tokens: number; csp_violations: number }>(
+      `${this.admin}/maintenance/prune`,
+      {},
+    );
+  }
+
+  reencryptSecrets(): Observable<{ providers: number; connections: number }> {
+    return this.http.post<{ providers: number; connections: number }>(
+      `${this.admin}/maintenance/reencrypt`,
+      {},
+    );
+  }
 }

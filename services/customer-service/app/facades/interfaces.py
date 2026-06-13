@@ -98,6 +98,9 @@ class IConnectionsFacade(ABC):
     @abstractmethod
     def download_file(self, req: "dto.DownloadFileReq") -> "dto.FileContentResp": ...
 
+    @abstractmethod
+    def reencrypt_tokens(self, req: "dto.ReencryptTokensReq") -> "dto.ReencryptResp": ...
+
 
 class IInternalFacade(ABC):
     @abstractmethod

@@ -1,6 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ApiService, CspDashboard } from '../core/api.service';
+import { AuthService } from '../core/auth.service';
 
 @Component({
   selector: 'app-security',
@@ -26,6 +27,22 @@ import { ApiService, CspDashboard } from '../core/api.service';
           <span class="count">{{ s.count }}</span>
         </div>
       </div>
+    </div>
+
+    <div class="card">
+      <h3>Maintenance</h3>
+      <div class="actions">
+        <button class="ghost" (click)="prune()" [disabled]="busy()">Run prune now</button>
+        <button class="ghost" *ngIf="isSuperadmin" (click)="reencrypt()" [disabled]="busy()">
+          Re-encrypt secrets
+        </button>
+        <span class="ok" *ngIf="maintMsg()">{{ maintMsg() }}</span>
+      </div>
+      <p class="muted small">
+        Prune removes expired revoked tokens and CSP reports past retention.
+        Re-encrypt re-seals stored secrets under the current encryption key (run after
+        rotating <code>TOKEN_ENCRYPTION_KEY</code>, then drop the previous key).
+      </p>
     </div>
 
     <div class="card">
@@ -60,13 +77,20 @@ import { ApiService, CspDashboard } from '../core/api.service';
       .bar { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid var(--border); }
       .count { font-weight: 700; color: var(--brand); }
       .head { display: flex; justify-content: space-between; align-items: center; }
+      .actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+      .small { font-size: 12px; }
+      code { font-family: monospace; }
     `,
   ],
 })
 export class SecurityComponent {
   private api = inject(ApiService);
+  private auth = inject(AuthService);
   data = signal<CspDashboard | null>(null);
   loading = signal(false);
+  busy = signal(false);
+  maintMsg = signal('');
+  isSuperadmin = this.auth.isSuperadmin;
 
   constructor() {
     this.load();
@@ -80,6 +104,37 @@ export class SecurityComponent {
         this.loading.set(false);
       },
       error: () => this.loading.set(false),
+    });
+  }
+
+  prune(): void {
+    this.busy.set(true);
+    this.maintMsg.set('');
+    this.api.pruneNow().subscribe({
+      next: (r) => {
+        this.busy.set(false);
+        this.maintMsg.set(`Pruned ${r.revoked_tokens} tokens, ${r.csp_violations} CSP reports.`);
+        this.load();
+      },
+      error: () => {
+        this.busy.set(false);
+        this.maintMsg.set('Prune failed.');
+      },
+    });
+  }
+
+  reencrypt(): void {
+    this.busy.set(true);
+    this.maintMsg.set('');
+    this.api.reencryptSecrets().subscribe({
+      next: (r) => {
+        this.busy.set(false);
+        this.maintMsg.set(`Re-encrypted ${r.providers} provider config(s), ${r.connections} connection(s).`);
+      },
+      error: () => {
+        this.busy.set(false);
+        this.maintMsg.set('Re-encrypt failed.');
+      },
     });
   }
 }

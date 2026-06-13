@@ -22,6 +22,7 @@ from .api import (
     auth_controller,
     csp_controller,
     customers_controller,
+    maintenance_controller,
     providers_controller,
 )
 from .config import settings
@@ -111,6 +112,7 @@ app.include_router(analytics_controller.router)
 app.include_router(admin_users_controller.router)
 app.include_router(csp_controller.router)
 app.include_router(csp_controller.internal)
+app.include_router(maintenance_controller.router)
 
 
 @app.get("/health", tags=["health"])

@@ -29,6 +29,8 @@ from ..dtos.internal_dtos import (
     GoogleCallbackReq,
     ListConnectionsReq,
     ListFilesReq,
+    ReencryptResp,
+    ReencryptTokensReq,
 )
 from ..services.connection_provider_service import BeginConnectReq, ConnectionProviderService
 from ..services.google_drive_service import (
@@ -53,6 +55,10 @@ _PLACEHOLDER_PNG = base64.b64decode(
 from .interfaces import IConnectionsFacade
 
 
+def _split_keys(raw: str) -> list[str]:
+    return [k.strip() for k in (raw or "").split(",") if k.strip()]
+
+
 class ConnectionsFacade(BaseFacade, IConnectionsFacade):
     def __init__(
         self,
@@ -70,7 +76,11 @@ class ConnectionsFacade(BaseFacade, IConnectionsFacade):
         self.google_drive = google_drive_service
         self.onedrive = onedrive_service
         # Encrypts OAuth tokens before they touch the DB (no-op if no key set).
-        self.cipher = TokenCipher(settings.token_encryption_key)
+        # Previous keys allow safe rotation (decrypt falls back to them).
+        self.cipher = TokenCipher(
+            settings.token_encryption_key,
+            previous_keys=_split_keys(settings.token_encryption_key_previous),
+        )
 
     # --- token-at-rest helpers ------------------------------------------------
     def _seal_meta(self, meta: dict) -> dict:
@@ -323,3 +333,28 @@ class ConnectionsFacade(BaseFacade, IConnectionsFacade):
         return FileListResp(
             files=[FileItem(id=f["id"], name=f["name"], mime_type=f["mime_type"], size=f["size"]) for f in files]
         )
+
+    @observe("ConnectionsFacade.reencrypt_tokens", metric="connection.reencrypt")
+    def reencrypt_tokens(self, req: ReencryptTokensReq) -> ReencryptResp:
+        """Re-seal every connection's stored tokens under the current key. Used
+        after rotating TOKEN_ENCRYPTION_KEY (decrypt falls back to previous keys).
+        No-op when encryption is disabled."""
+        from sqlalchemy import select
+
+        from ..models import Connection
+
+        if not self.cipher.enabled:
+            return ReencryptResp(count=0)
+        changed = 0
+        for conn in req.db.scalars(select(Connection)):
+            meta = conn.meta or {}
+            if not (meta.get("access_token") or meta.get("refresh_token")):
+                continue
+            resealed = self._seal_meta(self._open_meta(meta))
+            if resealed != meta:
+                conn.meta = resealed
+                changed += 1
+        if changed:
+            req.db.commit()
+        self.log.info("re-encrypted tokens for %d connection(s)", changed)
+        return ReencryptResp(count=changed)

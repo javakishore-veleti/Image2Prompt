@@ -5,6 +5,7 @@ import json
 from image2prompt_shared.crypto import TokenCipher
 from image2prompt_shared.layers import BaseFacade
 from image2prompt_shared.observability import observe
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..config import settings
@@ -27,7 +28,9 @@ class ProvidersFacade(BaseFacade, IProvidersFacade):
         super().__init__()
         self.provider_dao = provider_dao
         # Encrypts provider config (API keys/secrets) at rest. No-op if no key set.
-        self.cipher = TokenCipher(settings.token_encryption_key)
+        # Previous keys enable safe rotation (decrypt falls back to them).
+        prev = [k.strip() for k in (settings.token_encryption_key_previous or "").split(",") if k.strip()]
+        self.cipher = TokenCipher(settings.token_encryption_key, previous_keys=prev)
 
     # --- config-at-rest helpers ----------------------------------------------
     def _seal_config(self, config: dict | None) -> dict:
@@ -84,6 +87,26 @@ class ProvidersFacade(BaseFacade, IProvidersFacade):
             req.db.commit()
             self._decrypt_for_response(req.db, resp.provider)
         return resp
+
+    def reencrypt_configs(self, db: Session) -> int:
+        """Re-seal every provider's config under the current key. Used after a key
+        rotation (decrypt falls back to previous keys). No-op if encryption off."""
+        if not self.cipher.enabled:
+            return 0
+        changed = 0
+        for provider in db.scalars(select(Provider)):
+            cfg = provider.config or {}
+            if not cfg.get("_enc"):
+                continue
+            opened = self._open_config(cfg)
+            resealed = self._seal_config(opened)
+            if resealed != cfg:
+                provider.config = resealed
+                changed += 1
+        if changed:
+            db.commit()
+        self.log.info("re-encrypted config for %d provider(s)", changed)
+        return changed
 
     def _decrypt_for_response(self, db: Session, provider: Provider | None) -> None:
         if provider is None:

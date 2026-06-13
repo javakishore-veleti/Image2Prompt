@@ -51,6 +51,14 @@ class ICspFacade(ABC):
     def list_violations(self, req: "dto.ListViolationsReq") -> "dto.CspViolationListResp": ...
 
 
+class IMaintenanceFacade(ABC):
+    @abstractmethod
+    def prune_now(self, req: "dto.PruneReq") -> "dto.PruneResp": ...
+
+    @abstractmethod
+    async def reencrypt(self, req: "dto.ReencryptReq") -> "dto.ReencryptResp": ...
+
+
 class IAnalyticsFacade(ABC):
     @abstractmethod
     async def get_analytics(self, req: "dto.GetAnalyticsReq") -> "dto.AnalyticsResp": ...

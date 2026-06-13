@@ -337,6 +337,52 @@ def test_oauth_tokens_encrypted_at_rest(monkeypatch):
             session.close()
 
 
+def test_reencrypt_tokens_rotates_to_new_key(monkeypatch):
+    """A connection sealed under key-A is re-sealed under key-B after rotation."""
+    from app.config import settings as cfg
+    from app.dao.connection_dao import ConnectionDao
+    from app.db import db as cust_db
+    from app.di import _connections_facade
+    from app.dtos.internal_dtos import CreateConnectionReq, ReencryptTokensReq
+    from app.models import Connection
+    from image2prompt_shared.crypto import TokenCipher
+    from sqlalchemy import select
+
+    # seal under key-A
+    monkeypatch.setattr(cfg, "token_encryption_key", "key-A")
+    monkeypatch.setattr(cfg, "token_encryption_key_previous", "")
+    _connections_facade.cipher = TokenCipher("key-A")
+
+    with TestClient(app):
+        session = cust_db.SessionLocal()
+        try:
+            sealed = _connections_facade._seal_meta(
+                {"real": True, "access_token": "AT", "refresh_token": "RT", "expires_at": 0}
+            )
+            ConnectionDao().create(
+                CreateConnectionReq(
+                    db=session, customer_id="rot-cust", provider="google_drive",
+                    display_name="Google Drive", account_email="x@example.com", meta=sealed,
+                )
+            )
+            session.commit()
+
+            # rotate to key-B (key-A as previous) and re-encrypt
+            monkeypatch.setattr(cfg, "token_encryption_key", "key-B")
+            monkeypatch.setattr(cfg, "token_encryption_key_previous", "key-A")
+            _connections_facade.cipher = TokenCipher("key-B", previous_keys=["key-A"])
+
+            resp = _connections_facade.reencrypt_tokens(ReencryptTokensReq(db=session))
+            assert resp.count >= 1
+
+            row = session.scalar(select(Connection).where(Connection.customer_id == "rot-cust"))
+            # new ciphertext decrypts under key-B alone
+            assert TokenCipher("key-B").decrypt(row.meta["access_token"]) == "AT"
+            assert TokenCipher("key-A").decrypt(row.meta["access_token"]) == ""
+        finally:
+            session.close()
+
+
 def test_google_authorize_not_configured():
     with TestClient(app) as client:
         tok = client.post(
