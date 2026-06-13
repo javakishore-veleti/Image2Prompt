@@ -6,7 +6,11 @@ from image2prompt_shared.api_errors import ensure_ok
 
 from ..deps import current_admin
 from ..di import get_customers_facade
-from ..dtos.internal_dtos import GetCustomerConnectionsReq, ProxyCustomersReq
+from ..dtos.internal_dtos import (
+    GetCustomerActivityReq,
+    GetCustomerConnectionsReq,
+    ProxyCustomersReq,
+)
 from ..facades.interfaces import ICustomersFacade
 from ..schemas import CustomerOut
 
@@ -35,3 +39,19 @@ async def customer_connections(
 ):
     resp = ensure_ok(await facade.get_connections(GetCustomerConnectionsReq(customer_id=customer_id)))
     return resp.connections
+
+
+@router.get("/{customer_id}/activity")
+async def customer_activity(
+    customer_id: str,
+    limit: int = Query(default=50, le=200),
+    offset: int = Query(default=0, ge=0),
+    _=Depends(current_admin),
+    facade: ICustomersFacade = Depends(get_customers_facade),
+):
+    resp = ensure_ok(
+        await facade.get_activity(
+            GetCustomerActivityReq(customer_id=customer_id, limit=limit, offset=offset)
+        )
+    )
+    return resp.entries

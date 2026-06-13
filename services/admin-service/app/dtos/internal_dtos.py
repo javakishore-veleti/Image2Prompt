@@ -164,6 +164,18 @@ class CustomerConnectionsResp(BaseResp):
     connections: list = field(default_factory=list)
 
 
+@dataclass(kw_only=True)
+class GetCustomerActivityReq(BaseReq):
+    customer_id: str
+    limit: int = 50
+    offset: int = 0
+
+
+@dataclass(kw_only=True)
+class CustomerActivityResp(BaseResp):
+    entries: list = field(default_factory=list)
+
+
 # --- csp violations ---
 @dataclass(kw_only=True)
 class IngestViolationReq(BaseReq):
@@ -223,6 +235,7 @@ class RecordAuditReq(BaseReq):
 class ListAuditReq(BaseReq):
     db: Session
     limit: int = 100
+    offset: int = 0
     action: Optional[str] = None  # exact match
     actor: Optional[str] = None  # substring match on actor_email
     days: Optional[int] = None  # only entries from the last N days

@@ -103,6 +103,7 @@ import { AuthService } from '../core/auth.service';
         </tbody>
       </table>
       <ng-template #noaudit><p class="muted">No admin actions recorded yet.</p></ng-template>
+      <button class="ghost more" *ngIf="canLoadAudit()" (click)="loadMoreAudit()">Load more</button>
     </div>
 
     <div class="card">
@@ -140,6 +141,7 @@ import { AuthService } from '../core/auth.service';
       .head { display: flex; justify-content: space-between; align-items: center; }
       .filters { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
       .filters input, .filters select { width: auto; }
+      .more { margin-top: 12px; }
       .actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
       .small { font-size: 12px; }
       code { font-family: monospace; }
@@ -152,6 +154,8 @@ export class SecurityComponent {
   data = signal<CspDashboard | null>(null);
   rot = signal<RotationStatus | null>(null);
   audit = signal<AuditEntry[]>([]);
+  canLoadAudit = signal(false);
+  private auditPageSize = 100;
   loading = signal(false);
   fAction = '';
   fActor = '';
@@ -182,7 +186,23 @@ export class SecurityComponent {
   }
 
   loadAudit(): void {
-    this.api.auditLog(this.filter()).subscribe({ next: (a) => this.audit.set(a), error: () => {} });
+    this.api.auditLog(this.filter()).subscribe({
+      next: (a) => {
+        this.audit.set(a);
+        this.canLoadAudit.set(a.length === this.auditPageSize);
+      },
+      error: () => {},
+    });
+  }
+
+  loadMoreAudit(): void {
+    this.api.auditLog(this.filter(), this.audit().length).subscribe({
+      next: (a) => {
+        this.audit.update((cur) => [...cur, ...a]);
+        this.canLoadAudit.set(a.length === this.auditPageSize);
+      },
+      error: () => {},
+    });
   }
 
   applyFilters(): void {

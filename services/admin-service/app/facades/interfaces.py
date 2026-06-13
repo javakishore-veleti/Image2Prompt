@@ -76,3 +76,6 @@ class ICustomersFacade(ABC):
 
     @abstractmethod
     async def get_connections(self, req: "dto.GetCustomerConnectionsReq") -> "dto.CustomerConnectionsResp": ...
+
+    @abstractmethod
+    async def get_activity(self, req: "dto.GetCustomerActivityReq") -> "dto.CustomerActivityResp": ...

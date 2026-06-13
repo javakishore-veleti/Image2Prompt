@@ -43,5 +43,5 @@ class AuditDao(BaseDao):
             stmt = stmt.where(AuditLog.actor_email.ilike(f"%{req.actor}%"))
         if req.days:
             stmt = stmt.where(AuditLog.created_at >= utcnow() - timedelta(days=req.days))
-        rows = list(req.db.scalars(stmt.order_by(AuditLog.created_at.desc()).limit(req.limit)).all())
-        return AuditListResp(entries=rows)
+        stmt = stmt.order_by(AuditLog.created_at.desc()).limit(req.limit).offset(req.offset)
+        return AuditListResp(entries=list(req.db.scalars(stmt).all()))

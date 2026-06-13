@@ -57,6 +57,7 @@ async def rotation_status(
 @audit.get("", response_model=list[AuditOut])
 def list_audit(
     limit: int = Query(default=100, le=500),
+    offset: int = Query(default=0, ge=0),
     action: str | None = Query(default=None),
     actor: str | None = Query(default=None),
     days: int | None = Query(default=None, ge=1, le=3650),
@@ -65,7 +66,9 @@ def list_audit(
     facade: IMaintenanceFacade = Depends(get_maintenance_facade),
 ):
     resp = ensure_ok(
-        facade.list_audit(ListAuditReq(db=db, limit=limit, action=action, actor=actor, days=days))
+        facade.list_audit(
+            ListAuditReq(db=db, limit=limit, offset=offset, action=action, actor=actor, days=days)
+        )
     )
     return [AuditOut.model_validate(e) for e in resp.entries]
 

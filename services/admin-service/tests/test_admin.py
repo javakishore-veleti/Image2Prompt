@@ -463,6 +463,29 @@ def test_maintenance_reencrypt_reseals_providers(monkeypatch):
         assert view["config"]["api_key"] == MASK
 
 
+def test_admin_cross_customer_activity(monkeypatch):
+    from app.di import _customers_facade
+    from app.dtos.internal_dtos import CustomerActivityResp
+
+    async def _fake_activity(req):
+        assert req.customer_id == "cust-xyz"
+        return CustomerActivityResp(
+            entries=[{"id": "1", "action": "customer.login.success", "target": None, "detail": {}}]
+        )
+
+    monkeypatch.setattr(_customers_facade.directory_service, "get_activity", _fake_activity)
+
+    with TestClient(app) as client:
+        h = {"Authorization": f"Bearer {_login(client)}"}
+        r = client.get("/admin/customers/cust-xyz/activity", headers=h)
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body and body[0]["action"] == "customer.login.success"
+
+        # requires admin auth
+        assert client.get("/admin/customers/cust-xyz/activity").status_code == 401
+
+
 def test_login_rejects_bad_password():
     with TestClient(app) as client:
         r = client.post(

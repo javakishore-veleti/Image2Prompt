@@ -4,7 +4,9 @@ from image2prompt_shared.layers import BaseFacade
 from image2prompt_shared.observability import observe
 
 from ..dtos.internal_dtos import (
+    CustomerActivityResp,
     CustomerConnectionsResp,
+    GetCustomerActivityReq,
     GetCustomerConnectionsReq,
     ProxyCustomersReq,
     ProxyCustomersResp,
@@ -25,3 +27,7 @@ class CustomersFacade(BaseFacade, ICustomersFacade):
     @observe("CustomersFacade.get_connections")
     async def get_connections(self, req: GetCustomerConnectionsReq) -> CustomerConnectionsResp:
         return await self.directory_service.get_connections(req)
+
+    @observe("CustomersFacade.get_activity")
+    async def get_activity(self, req: GetCustomerActivityReq) -> CustomerActivityResp:
+        return await self.directory_service.get_activity(req)

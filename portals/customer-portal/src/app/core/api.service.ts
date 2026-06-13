@@ -162,8 +162,9 @@ export class ApiService {
     });
   }
 
-  activity(): Observable<ActivityItem[]> {
-    return this.http.get<ActivityItem[]>(`${this.customer}/me/activity`);
+  activity(limit = 50, offset = 0): Observable<ActivityItem[]> {
+    const params = new HttpParams().set('limit', String(limit)).set('offset', String(offset));
+    return this.http.get<ActivityItem[]>(`${this.customer}/me/activity`, { params });
   }
 
   prompts(search?: string): Observable<PromptItem[]> {

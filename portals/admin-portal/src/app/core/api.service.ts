@@ -58,6 +58,10 @@ export class ApiService {
     return this.http.get<any[]>(`${this.admin}/customers/${customerId}/connections`);
   }
 
+  customerActivity(customerId: string): Observable<AuditEntry[]> {
+    return this.http.get<AuditEntry[]>(`${this.admin}/customers/${customerId}/activity`);
+  }
+
   analytics(): Observable<any> {
     return this.http.get(`${this.admin}/analytics`);
   }
@@ -102,8 +106,12 @@ export class ApiService {
     return this.http.get<RotationStatus>(`${this.admin}/maintenance/rotation-status`);
   }
 
-  auditLog(filter: AuditFilter = {}): Observable<AuditEntry[]> {
-    return this.http.get<AuditEntry[]>(`${this.admin}/audit-log`, { params: this.auditParams(filter) });
+  auditLog(filter: AuditFilter = {}, offset = 0): Observable<AuditEntry[]> {
+    let params = this.auditParams(filter);
+    if (offset) {
+      params = params.set('offset', String(offset));
+    }
+    return this.http.get<AuditEntry[]>(`${this.admin}/audit-log`, { params });
   }
 
   exportAudit(filter: AuditFilter = {}): Observable<Blob> {

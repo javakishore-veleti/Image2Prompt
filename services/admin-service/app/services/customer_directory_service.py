@@ -7,7 +7,9 @@ from image2prompt_shared.observability import observe
 
 from ..config import settings
 from ..dtos.internal_dtos import (
+    CustomerActivityResp,
     CustomerConnectionsResp,
+    GetCustomerActivityReq,
     GetCustomerConnectionsReq,
     ProxyCustomersReq,
     ProxyCustomersResp,
@@ -43,5 +45,18 @@ class CustomerDirectoryService(BaseService):
                 return CustomerConnectionsResp(connections=resp.json())
         except httpx.HTTPError as exc:
             return CustomerConnectionsResp.failure(
+                error_code="upstream_error", error_message=f"customer-service unavailable: {exc}"
+            )
+
+    @observe("CustomerDirectoryService.get_activity")
+    async def get_activity(self, req: GetCustomerActivityReq) -> CustomerActivityResp:
+        url = f"{settings.customer_service_url}/internal/customers/{req.customer_id}/activity"
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(url, params={"limit": req.limit, "offset": req.offset})
+                resp.raise_for_status()
+                return CustomerActivityResp(entries=resp.json())
+        except httpx.HTTPError as exc:
+            return CustomerActivityResp.failure(
                 error_code="upstream_error", error_message=f"customer-service unavailable: {exc}"
             )

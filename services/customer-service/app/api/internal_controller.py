@@ -6,19 +6,20 @@ from sqlalchemy.orm import Session
 from image2prompt_shared.api_errors import ensure_ok
 
 from ..deps import get_db
-from ..di import get_connections_facade, get_internal_facade
+from ..di import get_connections_facade, get_internal_facade, get_profile_facade
 from ..dtos.internal_dtos import (
     CountCustomersReq,
     DownloadFileReq,
     GetByIdReq,
     GetPrefsReq,
+    ListActivityReq,
     ListConnectionsReq,
     ReencryptTokensReq,
     RotationStatusReq,
     SearchCustomersReq,
 )
-from ..facades.interfaces import IConnectionsFacade, IInternalFacade
-from ..schemas import ConnectionOut, CustomerOut, PreferenceOut
+from ..facades.interfaces import IConnectionsFacade, IInternalFacade, IProfileFacade
+from ..schemas import ActivityOut, ConnectionOut, CustomerOut, PreferenceOut
 
 router = APIRouter(prefix="/internal/customers", tags=["customers-internal"])
 # Service-to-service maintenance (trusted network) — triggered by admin-service.
@@ -95,6 +96,21 @@ def get_connections(
     return ensure_ok(
         facade.list_connections(ListConnectionsReq(db=db, customer_id=customer_id))
     ).connections
+
+
+@router.get("/{customer_id}/activity", response_model=list[ActivityOut])
+def get_customer_activity(
+    customer_id: str,
+    limit: int = Query(default=50, le=200),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    facade: IProfileFacade = Depends(get_profile_facade),
+):
+    # Admin cross-customer view (actor_id scope only; no email match needed here).
+    resp = ensure_ok(
+        facade.list_activity(ListActivityReq(db=db, customer_id=customer_id, limit=limit, offset=offset))
+    )
+    return [ActivityOut.model_validate(e) for e in resp.entries]
 
 
 @router.get("/{customer_id}/connections/{connection_id}/files/{file_id}/content")

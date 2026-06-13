@@ -371,6 +371,30 @@ def test_account_activity_records_security_events():
         assert not any(a["action"] in ("connection.connect", "connection.disconnect") for a in other_acts)
 
 
+def test_internal_customer_activity_and_pagination():
+    with TestClient(app) as client:
+        s = client.post(
+            "/auth/signup", json={"email": "paginate@example.com", "password": "pw123456"}
+        ).json()
+        h = {"Authorization": f"Bearer {s['access_token']}"}
+        cust = client.get("/me", headers=h).json()
+        # generate several login events
+        for _ in range(3):
+            client.post("/auth/login", json={"email": "paginate@example.com", "password": "pw123456"})
+
+        # internal admin-facing view (actor_id scope)
+        internal = client.get(f"/internal/customers/{cust['id']}/activity").json()
+        assert len(internal) >= 4  # signup + 3 logins
+        assert all("action" in e for e in internal)
+
+        # pagination: page 1 and page 2 don't overlap
+        p1 = client.get("/me/activity", params={"limit": 2, "offset": 0}, headers=h).json()
+        p2 = client.get("/me/activity", params={"limit": 2, "offset": 2}, headers=h).json()
+        assert len(p1) == 2
+        ids = {e["id"] for e in p1} & {e["id"] for e in p2}
+        assert not ids
+
+
 def test_reencrypt_tokens_rotates_to_new_key(monkeypatch):
     """A connection sealed under key-A is re-sealed under key-B after rotation."""
     from app.config import settings as cfg

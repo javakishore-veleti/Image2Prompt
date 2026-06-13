@@ -31,14 +31,21 @@ class AuditDao(BaseDao):
 
     @observe("AuditDao.list_for_customer")
     def list_for_customer(self, req: ListActivityReq) -> ActivityListResp:
-        # A customer sees activity attributed to their id, plus failed-login
-        # attempts recorded against their email before a session existed.
+        # A customer sees activity attributed to their id, plus (for self-view)
+        # failed-login attempts recorded against their email before a session
+        # existed. When customer_email is None (admin cross-customer view), match
+        # on actor_id only.
+        if req.customer_email:
+            cond = or_(AuditLog.actor_id == req.customer_id, AuditLog.actor_email == req.customer_email)
+        else:
+            cond = AuditLog.actor_id == req.customer_id
         rows = list(
             req.db.scalars(
                 select(AuditLog)
-                .where(or_(AuditLog.actor_id == req.customer_id, AuditLog.actor_email == req.customer_email))
+                .where(cond)
                 .order_by(AuditLog.created_at.desc())
                 .limit(req.limit)
+                .offset(req.offset)
             ).all()
         )
         return ActivityListResp(entries=rows)

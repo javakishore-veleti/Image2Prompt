@@ -25,6 +25,7 @@ import { ActivityItem, ApiService } from '../core/api.service';
         </tbody>
       </table>
       <ng-template #empty><p class="muted">No activity recorded yet.</p></ng-template>
+      <button class="ghost more" *ngIf="canLoadMore()" (click)="loadMore()">Load more</button>
     </div>
   `,
   styles: [
@@ -32,12 +33,15 @@ import { ActivityItem, ApiService } from '../core/api.service';
       .mono { font-family: monospace; font-size: 12px; }
       .badge { padding: 2px 8px; border-radius: 999px; background: var(--panel-2); font-weight: 600; font-size: 12px; }
       .badge.warn { background: #fde8e8; color: #c0392b; }
+      .more { margin-top: 12px; }
     `,
   ],
 })
 export class ActivityComponent {
   private api = inject(ApiService);
   items = signal<ActivityItem[]>([]);
+  private pageSize = 50;
+  canLoadMore = signal(false);
 
   private labels: Record<string, string> = {
     'customer.signup': 'Account created',
@@ -51,7 +55,17 @@ export class ActivityComponent {
   };
 
   constructor() {
-    this.api.activity().subscribe({ next: (a) => this.items.set(a), error: () => {} });
+    this.loadMore();
+  }
+
+  loadMore(): void {
+    this.api.activity(this.pageSize, this.items().length).subscribe({
+      next: (a) => {
+        this.items.update((cur) => [...cur, ...a]);
+        this.canLoadMore.set(a.length === this.pageSize);
+      },
+      error: () => {},
+    });
   }
 
   label(action: string): string {

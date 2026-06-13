@@ -28,13 +28,17 @@ def get_me(
 @router.get("/activity", response_model=list[ActivityOut])
 def get_activity(
     limit: int = Query(default=50, le=200),
+    offset: int = Query(default=0, ge=0),
     principal: Principal = Depends(current_customer),
     db: Session = Depends(get_db),
     facade: IProfileFacade = Depends(get_profile_facade),
 ):
     resp = ensure_ok(
         facade.list_activity(
-            ListActivityReq(db=db, customer_id=principal.id, customer_email=principal.email, limit=limit)
+            ListActivityReq(
+                db=db, customer_id=principal.id, customer_email=principal.email,
+                limit=limit, offset=offset,
+            )
         )
     )
     return [ActivityOut.model_validate(e) for e in resp.entries]

@@ -105,6 +105,7 @@ class ListActivityReq(BaseReq):
     customer_id: str
     customer_email: Optional[str] = None
     limit: int = 50
+    offset: int = 0
 
 
 @dataclass(kw_only=True)
