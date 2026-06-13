@@ -20,7 +20,17 @@ class StorageService(BaseService):
 
     @observe("StorageService.store")
     def store(self, req: StoreImageReq) -> FileRefResp:
-        backend = get_storage_backend(req.storage_backend, base_dir=settings.local_storage_dir)
+        backend = get_storage_backend(
+            req.storage_backend,
+            base_dir=settings.local_storage_dir,
+            s3_bucket=settings.s3_bucket,
+            s3_prefix=settings.s3_prefix,
+            azure_blob_container=settings.azure_blob_container,
+            azure_storage_connection_string=settings.azure_storage_connection_string,
+            azure_storage_account_url=settings.azure_storage_account_url,
+            gcs_bucket=settings.gcs_bucket,
+            gcs_prefix=settings.gcs_prefix,
+        )
         ext = (req.filename.rsplit(".", 1)[-1] if "." in req.filename else "bin")[:10]
         key = f"{req.customer_id}/{uuid.uuid4()}.{ext}"
         stored = backend.save(req.data, key=key, content_type=req.content_type)

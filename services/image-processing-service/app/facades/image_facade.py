@@ -60,17 +60,23 @@ class ImageFacade(BaseFacade, IImageFacade):
                 error_message="No enabled providers available for this request.",
             )
 
-        # 1) store image
-        stored = self.storage_service.store(
-            StoreImageReq(
-                db=req.db,
-                customer_id=req.customer_id,
-                data=req.image_bytes,
-                content_type=req.content_type,
-                filename=req.filename,
-                storage_backend=resolution.storage_backend,
+        # 1) store image (storage failures are surfaced, not raised)
+        try:
+            stored = self.storage_service.store(
+                StoreImageReq(
+                    db=req.db,
+                    customer_id=req.customer_id,
+                    data=req.image_bytes,
+                    content_type=req.content_type,
+                    filename=req.filename,
+                    storage_backend=resolution.storage_backend,
+                )
             )
-        )
+        except Exception as exc:
+            self.log.warning("storage failed (%s): %s", resolution.storage_backend, exc)
+            return ProcReqResp.failure(
+                error_code="internal", error_message=f"Storage backend error: {exc}"
+            )
         file_ref = stored.file_ref
 
         # 2) create request + pending provider rows

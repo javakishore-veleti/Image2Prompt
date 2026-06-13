@@ -63,6 +63,16 @@ class ServiceSettings(BaseSettings):
     # --- Storage ---
     storage_backend: str = "local"
     local_storage_dir: str = "/data/uploads"
+    # S3
+    s3_bucket: str = ""
+    s3_prefix: str = "uploads/"
+    # Azure Blob
+    azure_blob_container: str = ""
+    azure_storage_connection_string: str = ""
+    azure_storage_account_url: str = ""
+    # GCP Cloud Storage
+    gcs_bucket: str = ""
+    gcs_prefix: str = "uploads/"
 
     # --- Logging ---
     log_level: str = "INFO"
