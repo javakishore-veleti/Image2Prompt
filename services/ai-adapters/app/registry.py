@@ -4,6 +4,7 @@ from .config import settings
 from .controllers.base import ProviderController
 from .controllers.bedrock import BedrockController
 from .controllers.mock import MockController
+from .controllers.strands import StrandsController
 from .controllers.stubs import (
     AnthropicController,
     CrewAIController,
@@ -24,6 +25,7 @@ def build_registry() -> dict[str, ProviderController]:
     controllers: list[ProviderController] = [
         BedrockController(region=settings.aws_region, model_id=settings.bedrock_model_id),
         MockController(),
+        StrandsController(region=settings.aws_region, model_id=settings.bedrock_model_id),
         AnthropicController(),
         OpenAIController(),
         GoogleController(),

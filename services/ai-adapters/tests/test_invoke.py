@@ -38,6 +38,26 @@ def test_stub_provider_not_implemented():
     assert body["error"]["type"] == "not_implemented"
 
 
+def test_strands_is_a_real_provider():
+    # Strands is implemented (not a stub) and advertised as such.
+    providers = {p["key"]: p for p in client.get("/providers").json()}
+    assert "strands" in providers
+    assert providers["strands"]["implemented"] is True
+
+
+def test_strands_without_sdk_degrades_gracefully():
+    # The Strands SDK isn't installed in the test env; the real controller tries
+    # to import it and the service returns an error envelope (never 500/raises).
+    r = client.post(
+        "/invoke",
+        json={"provider_key": "strands", "request_id": "req-s", "image_base64": IMG_B64},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["status"] == "error"
+    assert body["error"] is not None
+
+
 def test_unknown_provider_404():
     r = client.post(
         "/invoke",

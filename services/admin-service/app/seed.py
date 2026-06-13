@@ -13,6 +13,7 @@ from .models import AdminUser, Provider
 DEFAULT_PROVIDERS = [
     {"key": "bedrock", "name": "AWS Bedrock (Claude)", "category": "aws", "enabled": True},
     {"key": "mock", "name": "Mock Provider (offline dev)", "category": "dev", "enabled": True},
+    {"key": "strands", "name": "AWS Strands Agents", "category": "framework", "enabled": False},
     {"key": "anthropic", "name": "Anthropic API", "category": "anthropic", "enabled": False},
     {"key": "openai", "name": "OpenAI SDK", "category": "openai", "enabled": False},
     {"key": "google", "name": "Google GenAI SDK", "category": "google", "enabled": False},
