@@ -71,19 +71,34 @@ jobs:
               ExistingPrivateSubnetIds="${{ inputs.private_subnet_ids }}" \
             --no-fail-on-empty-changeset
 
-      - name: 002 Secrets
+      - name: 002 Secrets (+ patch provider keys via CLI)
+        env:
+          OPENAI_API_KEY: ${{ inputs.openai_api_key }}
+          ANTHROPIC_API_KEY: ${{ inputs.anthropic_api_key }}
+          GOOGLE_API_KEY: ${{ inputs.google_api_key }}
+          AZURE_OPENAI_ENDPOINT: ${{ inputs.azure_openai_endpoint }}
+          AZURE_OPENAI_API_KEY: ${{ inputs.azure_openai_api_key }}
         run: |
+          set -e
           aws cloudformation deploy --stack-name img2pmpt-secrets \
             --template-file DevOps/AWS/cloudformation/002-secrets.yaml \
             --parameter-overrides \
               AdminEmail="${{ inputs.admin_email }}" \
               AdminPassword="${{ inputs.admin_password }}" \
-              OpenAiApiKey="${{ inputs.openai_api_key }}" \
-              AnthropicApiKey="${{ inputs.anthropic_api_key }}" \
-              GoogleApiKey="${{ inputs.google_api_key }}" \
-              AzureOpenAiEndpoint="${{ inputs.azure_openai_endpoint }}" \
-              AzureOpenAiApiKey="${{ inputs.azure_openai_api_key }}" \
             --no-fail-on-empty-changeset
+          CUR=$(aws secretsmanager get-secret-value --secret-id img2pmpt/app --query SecretString --output text)
+          echo "$CUR" | jq \
+            --arg OPENAI_API_KEY "$OPENAI_API_KEY" \
+            --arg ANTHROPIC_API_KEY "$ANTHROPIC_API_KEY" \
+            --arg GOOGLE_API_KEY "$GOOGLE_API_KEY" \
+            --arg AZURE_OPENAI_ENDPOINT "$AZURE_OPENAI_ENDPOINT" \
+            --arg AZURE_OPENAI_API_KEY "$AZURE_OPENAI_API_KEY" '
+            reduce ({OPENAI_API_KEY:$OPENAI_API_KEY, ANTHROPIC_API_KEY:$ANTHROPIC_API_KEY,
+                     GOOGLE_API_KEY:$GOOGLE_API_KEY, AZURE_OPENAI_ENDPOINT:$AZURE_OPENAI_ENDPOINT,
+                     AZURE_OPENAI_API_KEY:$AZURE_OPENAI_API_KEY} | to_entries[]) as $kv
+                    (.; if $kv.value != "" then . + {($kv.key): $kv.value} else . end)
+          ' > /tmp/secret.json
+          aws secretsmanager put-secret-value --secret-id img2pmpt/app --secret-string file:///tmp/secret.json
 
       - name: 003 Database (+ patch DATABASE_URL)
         env:

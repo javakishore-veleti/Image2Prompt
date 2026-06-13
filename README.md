@@ -103,10 +103,12 @@ one secret per key.
 
 **AI provider keys** follow the same path. Locally, set `OPENAI_API_KEY`,
 `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, and `AZURE_OPENAI_*` in the root `.env`
-(see `.env.example`). In AWS they're passed as **inputs to `AWS_002_Setup_Secrets`**
-(or `AWS_1000_All_Setup`) and stored in the secret bundle — never committed. A
-blank key just leaves that provider returning an error envelope if invoked
-(bedrock + the framework providers use AWS creds; `mock` needs nothing).
+(see `.env.example`). In AWS they're entered as **inputs to `AWS_002_Setup_Secrets`**
+(or `AWS_1000_All_Setup`) and **patched into the secret via the CLI** (jq merge,
+non-empty only) — they are *never* passed as CloudFormation parameters, so they
+don't appear in stack/parameter history. A blank key just leaves that provider
+returning an error envelope if invoked (bedrock + the framework providers use AWS
+creds; `mock` needs nothing).
 
 ## Quick start (local dev)
 
