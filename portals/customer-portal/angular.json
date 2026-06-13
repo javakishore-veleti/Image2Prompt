@@ -44,6 +44,13 @@
         },
         "serve": {
           "builder": "@angular-devkit/build-angular:dev-server",
+          "options": {
+            "headers": {
+              "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' http://localhost:8000 ws://localhost:4200; object-src 'none'; base-uri 'self'",
+              "X-Content-Type-Options": "nosniff",
+              "Referrer-Policy": "no-referrer"
+            }
+          },
           "configurations": {
             "production": { "buildTarget": "customer-portal:build:production" },
             "development": { "buildTarget": "customer-portal:build:development" }

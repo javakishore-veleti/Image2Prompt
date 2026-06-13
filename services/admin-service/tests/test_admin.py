@@ -45,6 +45,55 @@ def test_login_and_providers_seeded():
         assert r3.status_code == 200 and r3.json()["enabled"] is True
 
 
+def test_provider_config_encrypted_at_rest(monkeypatch):
+    """With a key configured, provider config (API keys) is ciphertext in the DB
+    but decrypts transparently on both admin and internal reads."""
+    from app.config import settings as cfg
+    from app.di import _providers_facade
+    from app.db import db as admin_db
+    from app.models import Provider
+    from image2prompt_shared.crypto import TokenCipher
+    from sqlalchemy import select
+
+    monkeypatch.setattr(cfg, "token_encryption_key", "admin-unit-test-key")
+    _providers_facade.cipher = TokenCipher(cfg.token_encryption_key)
+
+    with TestClient(app) as client:
+        token = _login(client)
+        h = {"Authorization": f"Bearer {token}"}
+
+        # set a secret on openai via PATCH
+        oid = {p["key"]: p["id"] for p in client.get("/admin/providers", headers=h).json()}["openai"]
+        r = client.patch(
+            f"/admin/providers/{oid}",
+            json={"enabled": True, "config": {"api_key": "sk-super-secret"}},
+            headers=h,
+        )
+        assert r.status_code == 200
+        # response carries decrypted config
+        assert r.json()["config"] == {"api_key": "sk-super-secret"}
+
+        # raw DB row is ciphertext (no plaintext secret on disk)
+        session = admin_db.SessionLocal()
+        try:
+            row = session.scalar(select(Provider).where(Provider.id == oid))
+            assert "_enc" in row.config
+            assert TokenCipher.is_encrypted(row.config["_enc"])
+            assert "sk-super-secret" not in json_dumps(row.config)
+        finally:
+            session.close()
+
+        # internal endpoint (consumed by image-processing) returns plaintext
+        internal = {p["key"]: p for p in client.get("/internal/providers", params={"enabled": "true"}).json()}
+        assert internal["openai"]["config"] == {"api_key": "sk-super-secret"}
+
+
+def json_dumps(obj) -> str:
+    import json
+
+    return json.dumps(obj)
+
+
 def test_login_rejects_bad_password():
     with TestClient(app) as client:
         r = client.post(
