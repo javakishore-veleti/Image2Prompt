@@ -72,6 +72,17 @@ class ResolveProvidersResp(BaseResp):
     storage_backend: str = "local"
 
 
+# --- available providers (remote: admin) ---
+@dataclass(kw_only=True)
+class ListEnabledProvidersReq(BaseReq):
+    pass
+
+
+@dataclass(kw_only=True)
+class EnabledProvidersResp(BaseResp):
+    providers: list[dict] = field(default_factory=list)
+
+
 # --- ai dispatch (remote: ai-adapters) ---
 @dataclass(kw_only=True)
 class DispatchReq(BaseReq):

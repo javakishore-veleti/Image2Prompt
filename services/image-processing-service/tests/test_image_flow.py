@@ -14,6 +14,8 @@ from app.db import Base, db  # noqa: E402
 from app.di import _image_facade  # noqa: E402
 from app.dtos.internal_dtos import (  # noqa: E402
     DispatchResp,
+    EnabledProvidersResp,
+    ListEnabledProvidersReq,
     ListPromptsReq,
     ProcessImageReq,
     ResolveProvidersResp,
@@ -63,6 +65,16 @@ def test_process_image_and_list_prompts(monkeypatch):
         assert prompts.items[0].output_text == "a prompt"
     finally:
         session.close()
+
+
+def test_list_providers_delegates_to_resolution(monkeypatch):
+    async def _enabled(req):
+        return EnabledProvidersResp(providers=[{"key": "mock", "name": "Mock"}, {"key": "bedrock", "name": "Bedrock"}])
+
+    monkeypatch.setattr(_image_facade.resolution_service, "list_enabled", _enabled)
+    resp = asyncio.run(_image_facade.list_providers(ListEnabledProvidersReq()))
+    assert resp.success
+    assert {p["key"] for p in resp.providers} == {"mock", "bedrock"}
 
 
 def test_no_providers_returns_error(monkeypatch):

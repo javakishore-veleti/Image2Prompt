@@ -17,3 +17,6 @@ class IImageFacade(ABC):
 
     @abstractmethod
     def list_prompts(self, req: "dto.ListPromptsReq") -> "dto.PromptListResp": ...
+
+    @abstractmethod
+    async def list_providers(self, req: "dto.ListEnabledProvidersReq") -> "dto.EnabledProvidersResp": ...

@@ -22,9 +22,17 @@ import { ApiService, ProcRequest } from '../core/api.service';
           <label>Instruction</label>
           <textarea rows="3" [(ngModel)]="instruction"></textarea>
         </div>
+        <div class="field" *ngIf="providers().length">
+          <label>Providers <span class="muted">(optional — none = your defaults)</span></label>
+          <div class="providers">
+            <label class="chk" *ngFor="let p of providers()">
+              <input type="checkbox" [checked]="selected.has(p.key)" (change)="toggle(p.key)" />
+              {{ p.name }}
+            </label>
+          </div>
+        </div>
         <p class="muted small">
-          Providers are resolved from your preferences and admin-enabled providers
-          (the offline <code>mock</code> provider works with no cloud credentials).
+          The offline <code>mock</code> provider works with no cloud credentials.
         </p>
         <p class="error" *ngIf="error()">{{ error() }}</p>
         <button (click)="generate()" [disabled]="!file || loading()">
@@ -54,6 +62,9 @@ import { ApiService, ProcRequest } from '../core/api.service';
       @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
       .preview img { max-width: 100%; border-radius: 12px; margin-bottom: 14px; }
       .small { font-size: 12px; }
+      .providers { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+      .chk { display: flex; align-items: center; gap: 6px; font-weight: 500; }
+      .chk input { width: auto; }
       .provider-out { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 12px; }
       .provider-head { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
       .output-box {
@@ -78,6 +89,23 @@ export class DashboardComponent {
   loading = signal(false);
   error = signal('');
   result = signal<ProcRequest | null>(null);
+  providers = signal<{ key: string; name: string }[]>([]);
+  selected = new Set<string>();
+
+  constructor() {
+    this.api.availableProviders().subscribe({
+      next: (p) => this.providers.set(p),
+      error: () => {},
+    });
+  }
+
+  toggle(key: string): void {
+    if (this.selected.has(key)) {
+      this.selected.delete(key);
+    } else {
+      this.selected.add(key);
+    }
+  }
 
   onFile(event: Event): void {
     const input = event.target as HTMLInputElement;
@@ -90,7 +118,8 @@ export class DashboardComponent {
     this.error.set('');
     this.loading.set(true);
     this.result.set(null);
-    this.api.generate(this.file, this.instruction).subscribe({
+    const providers = this.selected.size ? Array.from(this.selected).join(',') : undefined;
+    this.api.generate(this.file, this.instruction, providers).subscribe({
       next: (res) => {
         this.result.set(res);
         this.loading.set(false);

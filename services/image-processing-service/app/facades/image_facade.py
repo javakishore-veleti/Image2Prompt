@@ -10,7 +10,9 @@ from ..dao.prompt_dao import PromptDao
 from ..dtos.internal_dtos import (
     CreateProcReqReq,
     DispatchReq,
+    EnabledProvidersResp,
     GetRequestReq,
+    ListEnabledProvidersReq,
     ListPromptsReq,
     ListRequestsReq,
     ProcessImageReq,
@@ -134,3 +136,7 @@ class ImageFacade(BaseFacade, IImageFacade):
     @observe("ImageFacade.list_prompts")
     def list_prompts(self, req: ListPromptsReq) -> PromptListResp:
         return self.prompt_dao.list(req)
+
+    @observe("ImageFacade.list_providers")
+    async def list_providers(self, req: ListEnabledProvidersReq) -> EnabledProvidersResp:
+        return await self.resolution_service.list_enabled(req)

@@ -6,6 +6,11 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict
 
 
+class AvailableProvider(BaseModel):
+    key: str
+    name: str
+
+
 class ProviderResultOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

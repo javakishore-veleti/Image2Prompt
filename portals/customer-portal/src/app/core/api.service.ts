@@ -70,6 +70,11 @@ export class ApiService {
     return this.http.get<any[]>(`${this.customer}/projects`);
   }
 
+  // --- Providers available to run a request against ---
+  availableProviders(): Observable<{ key: string; name: string }[]> {
+    return this.http.get<{ key: string; name: string }[]>(`${this.images}/providers`);
+  }
+
   // --- Image processing ---
   generate(file: File, instruction: string, providers?: string): Observable<ProcRequest> {
     const form = new FormData();

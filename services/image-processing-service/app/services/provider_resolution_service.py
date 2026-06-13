@@ -5,7 +5,12 @@ from image2prompt_shared.layers import BaseService
 from image2prompt_shared.observability import observe
 
 from ..config import settings
-from ..dtos.internal_dtos import ResolveProvidersReq, ResolveProvidersResp
+from ..dtos.internal_dtos import (
+    EnabledProvidersResp,
+    ListEnabledProvidersReq,
+    ResolveProvidersReq,
+    ResolveProvidersResp,
+)
 
 
 class ProviderResolutionService(BaseService):
@@ -42,3 +47,17 @@ class ProviderResolutionService(BaseService):
             config_map=config_map,
             storage_backend=prefs.get("storage_backend", "local"),
         )
+
+    @observe("ProviderResolutionService.list_enabled")
+    async def list_enabled(self, req: ListEnabledProvidersReq) -> EnabledProvidersResp:
+        try:
+            enabled = await get_json(
+                f"{settings.admin_service_url}/internal/providers", params={"enabled": "true"}
+            )
+            return EnabledProvidersResp(
+                providers=[{"key": p["key"], "name": p["name"]} for p in enabled]
+            )
+        except Exception as exc:
+            return EnabledProvidersResp(
+                success=False, error_code="upstream_error", error_message=str(exc)
+            )
