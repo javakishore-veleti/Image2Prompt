@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from .dao.admin_user_dao import AdminUserDao
+from .dao.audit_dao import AuditDao
 from .dao.csp_violation_dao import CspViolationDao
 from .dao.provider_dao import ProviderDao
 from .dao.revoked_token_dao import RevokedTokenDao
@@ -32,6 +33,7 @@ _admin_user_dao = AdminUserDao()
 _provider_dao = ProviderDao()
 _revoked_token_dao = RevokedTokenDao()
 _csp_violation_dao = CspViolationDao()
+_audit_dao = AuditDao()
 
 # Services
 _token_service = AdminTokenService()
@@ -43,7 +45,9 @@ _maintenance_service = MaintenanceService()
 _auth_facade: IAdminAuthFacade = AdminAuthFacade(
     admin_user_dao=_admin_user_dao, token_service=_token_service, revoked_token_dao=_revoked_token_dao
 )
-_providers_facade: IProvidersFacade = ProvidersFacade(provider_dao=_provider_dao)
+_providers_facade: IProvidersFacade = ProvidersFacade(
+    provider_dao=_provider_dao, audit_dao=_audit_dao
+)
 _customers_facade: ICustomersFacade = CustomersFacade(directory_service=_directory_service)
 _analytics_facade: IAnalyticsFacade = AnalyticsFacade(
     provider_dao=_provider_dao,
@@ -57,6 +61,7 @@ _maintenance_facade: IMaintenanceFacade = MaintenanceFacade(
     csp_violation_dao=_csp_violation_dao,
     providers_facade=_providers_facade,
     maintenance_service=_maintenance_service,
+    audit_dao=_audit_dao,
 )
 
 

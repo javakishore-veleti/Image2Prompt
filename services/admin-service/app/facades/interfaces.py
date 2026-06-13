@@ -61,6 +61,9 @@ class IMaintenanceFacade(ABC):
     @abstractmethod
     async def rotation_status(self, req: "dto.RotationStatusReq") -> "dto.RotationStatusResp": ...
 
+    @abstractmethod
+    def list_audit(self, req: "dto.ListAuditReq") -> "dto.AuditListResp": ...
+
 
 class IAnalyticsFacade(ABC):
     @abstractmethod

@@ -101,10 +101,24 @@ export class ApiService {
   rotationStatus(): Observable<RotationStatus> {
     return this.http.get<RotationStatus>(`${this.admin}/maintenance/rotation-status`);
   }
+
+  auditLog(limit = 100): Observable<AuditEntry[]> {
+    let params = new HttpParams().set('limit', String(limit));
+    return this.http.get<AuditEntry[]>(`${this.admin}/audit-log`, { params });
+  }
 }
 
 export interface RotationStatus {
   key_id: string | null;
   providers: { total: number; stale: number };
   connections: { total: number; stale: number };
+}
+
+export interface AuditEntry {
+  id: string;
+  created_at: string;
+  actor_email: string | null;
+  action: string;
+  target: string | null;
+  detail: Record<string, unknown>;
 }

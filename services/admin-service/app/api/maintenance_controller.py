@@ -1,35 +1,42 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from image2prompt_shared.api_errors import ensure_ok
+from image2prompt_shared.auth_dep import Principal
 
 from ..deps import admin_writer, current_admin, get_db, superadmin_only
 from ..di import get_maintenance_facade
-from ..dtos.internal_dtos import PruneReq, ReencryptReq, RotationStatusReq
+from ..dtos.internal_dtos import ListAuditReq, PruneReq, ReencryptReq, RotationStatusReq
 from ..facades.interfaces import IMaintenanceFacade
+from ..schemas import AuditOut
 
 router = APIRouter(prefix="/admin/maintenance", tags=["maintenance"])
+audit = APIRouter(prefix="/admin/audit-log", tags=["audit"])
 
 
 @router.post("/prune")
 def prune_now(
-    _=Depends(admin_writer),
+    principal: Principal = Depends(admin_writer),
     db: Session = Depends(get_db),
     facade: IMaintenanceFacade = Depends(get_maintenance_facade),
 ):
-    resp = ensure_ok(facade.prune_now(PruneReq(db=db)))
+    resp = ensure_ok(
+        facade.prune_now(PruneReq(db=db, actor_id=principal.id, actor_email=principal.email))
+    )
     return {"revoked_tokens": resp.revoked_tokens, "csp_violations": resp.csp_violations}
 
 
 @router.post("/reencrypt")
 async def reencrypt(
-    _=Depends(superadmin_only),  # re-keying touches all stored secrets
+    principal: Principal = Depends(superadmin_only),  # re-keying touches all stored secrets
     db: Session = Depends(get_db),
     facade: IMaintenanceFacade = Depends(get_maintenance_facade),
 ):
-    resp = ensure_ok(await facade.reencrypt(ReencryptReq(db=db)))
+    resp = ensure_ok(
+        await facade.reencrypt(ReencryptReq(db=db, actor_id=principal.id, actor_email=principal.email))
+    )
     return {"providers": resp.providers, "connections": resp.connections}
 
 
@@ -45,3 +52,14 @@ async def rotation_status(
         "providers": {"total": resp.provider_total, "stale": resp.provider_stale},
         "connections": {"total": resp.connection_total, "stale": resp.connection_stale},
     }
+
+
+@audit.get("", response_model=list[AuditOut])
+def list_audit(
+    limit: int = Query(default=100, le=500),
+    _=Depends(current_admin),
+    db: Session = Depends(get_db),
+    facade: IMaintenanceFacade = Depends(get_maintenance_facade),
+):
+    resp = ensure_ok(facade.list_audit(ListAuditReq(db=db, limit=limit)))
+    return [AuditOut.model_validate(e) for e in resp.entries]

@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from image2prompt_shared.api_errors import ensure_ok
+from image2prompt_shared.auth_dep import Principal
 
 from ..deps import admin_writer, current_admin, get_db
 from ..di import get_providers_facade
@@ -45,7 +46,7 @@ def list_providers(
 @router.post("", response_model=ProviderOut, status_code=201)
 def create_provider(
     payload: ProviderCreate,
-    _=Depends(admin_writer),
+    principal: Principal = Depends(admin_writer),
     db: Session = Depends(get_db),
     facade: IProvidersFacade = Depends(get_providers_facade),
 ):
@@ -58,6 +59,8 @@ def create_provider(
                 category=payload.category,
                 enabled=payload.enabled,
                 config=payload.config,
+                actor_id=principal.id,
+                actor_email=principal.email,
             )
         )
     )
@@ -68,7 +71,7 @@ def create_provider(
 def update_provider(
     provider_id: str,
     payload: ProviderUpdate,
-    _=Depends(admin_writer),
+    principal: Principal = Depends(admin_writer),
     db: Session = Depends(get_db),
     facade: IProvidersFacade = Depends(get_providers_facade),
 ):
@@ -81,6 +84,8 @@ def update_provider(
                 category=payload.category,
                 enabled=payload.enabled,
                 config=payload.config,
+                actor_id=principal.id,
+                actor_email=principal.email,
             )
         )
     )

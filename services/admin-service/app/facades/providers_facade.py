@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..config import settings
+from ..dao.audit_dao import AuditDao
 from ..dao.provider_dao import ProviderDao
 from ..dtos.internal_dtos import (
     CreateProviderReq,
@@ -16,17 +17,19 @@ from ..dtos.internal_dtos import (
     ListProvidersReq,
     ProviderListResp,
     ProviderResp,
+    RecordAuditReq,
     UpdateProviderReq,
 )
-from ..masking import merge_with_existing
+from ..masking import MASK, merge_with_existing
 from ..models import Provider
 from .interfaces import IProvidersFacade
 
 
 class ProvidersFacade(BaseFacade, IProvidersFacade):
-    def __init__(self, *, provider_dao: ProviderDao) -> None:
+    def __init__(self, *, provider_dao: ProviderDao, audit_dao: AuditDao) -> None:
         super().__init__()
         self.provider_dao = provider_dao
+        self.audit_dao = audit_dao
         # Encrypts provider config (API keys/secrets) at rest. No-op if no key set.
         # Previous keys enable safe rotation (decrypt falls back to them).
         prev = [k.strip() for k in (settings.token_encryption_key_previous or "").split(",") if k.strip()]
@@ -67,26 +70,46 @@ class ProvidersFacade(BaseFacade, IProvidersFacade):
 
     @observe("ProvidersFacade.create_provider")
     def create_provider(self, req: CreateProviderReq) -> ProviderResp:
+        config_keys = list((req.config or {}).keys())
         req.config = self._seal_config(req.config)
         resp = self.provider_dao.create(req)
         if resp.success:
+            self._audit(req, "provider.create", req.key, {"enabled": req.enabled, "config_keys": config_keys})
             req.db.commit()
             self._decrypt_for_response(req.db, resp.provider)
         return resp
 
     @observe("ProvidersFacade.update_provider")
     def update_provider(self, req: UpdateProviderReq) -> ProviderResp:
+        detail: dict = {}
+        if req.enabled is not None:
+            detail["enabled"] = req.enabled
+        if req.name is not None:
+            detail["name"] = req.name
         if req.config is not None:
+            incoming = req.config
+            # Record only key NAMES — never secret values.
+            detail["config_set"] = [k for k, v in incoming.items() if v is not None and v != MASK]
+            detail["config_removed"] = [k for k, v in incoming.items() if v is None]
             # Restore any masked (unchanged) secrets from the stored config, then
             # re-seal the merged result before persisting.
             current = self.provider_dao.get(GetProviderReq(db=req.db, provider_id=req.provider_id))
             existing = self._open_config(current.provider.config) if current.success else {}
-            req.config = self._seal_config(merge_with_existing(req.config, existing))
+            req.config = self._seal_config(merge_with_existing(incoming, existing))
         resp = self.provider_dao.update(req)
         if resp.success:
+            self._audit(req, "provider.update", resp.provider.key, detail)
             req.db.commit()
             self._decrypt_for_response(req.db, resp.provider)
         return resp
+
+    def _audit(self, req, action: str, target: str, detail: dict) -> None:
+        self.audit_dao.record(
+            RecordAuditReq(
+                db=req.db, action=action, target=target, detail=detail,
+                actor_id=getattr(req, "actor_id", None), actor_email=getattr(req, "actor_email", None),
+            )
+        )
 
     def reencrypt_configs(self, db: Session) -> int:
         """Re-seal every provider's config under the current key. Used after a key

@@ -101,6 +101,16 @@ class CspViolationOut(BaseModel):
     disposition: str | None = None
 
 
+class AuditOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    created_at: Any
+    actor_email: str | None = None
+    action: str
+    target: str | None = None
+    detail: dict[str, Any] = {}
+
+
 class CspSummaryItem(BaseModel):
     directive: str
     count: int

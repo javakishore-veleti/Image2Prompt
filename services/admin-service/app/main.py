@@ -113,6 +113,7 @@ app.include_router(admin_users_controller.router)
 app.include_router(csp_controller.router)
 app.include_router(csp_controller.internal)
 app.include_router(maintenance_controller.router)
+app.include_router(maintenance_controller.audit)
 
 
 @app.get("/health", tags=["health"])

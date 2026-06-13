@@ -36,6 +36,19 @@ class RevokedToken(Base, UUIDPkMixin, TimestampMixin):
     reason: Mapped[str] = mapped_column(String(50), default="revoked")
 
 
+class AuditLog(Base, UUIDPkMixin, TimestampMixin):
+    """Append-only record of sensitive admin actions (provider/credential changes,
+    maintenance). ``detail`` never contains secret values — only key names."""
+
+    __tablename__ = "audit_log"
+
+    actor_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    actor_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    action: Mapped[str] = mapped_column(String(64), index=True)
+    target: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    detail: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
 class CspViolation(Base, UUIDPkMixin, TimestampMixin):
     """A Content-Security-Policy violation report forwarded by the gateway.
     Normalized from both report-uri and Reporting-API payloads.

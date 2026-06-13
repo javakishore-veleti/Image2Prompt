@@ -330,6 +330,34 @@ def test_rotation_status_reports_stale(monkeypatch):
         assert rs["providers"]["total"] >= rs["providers"]["stale"]
 
 
+def test_audit_log_records_provider_and_maintenance_actions():
+    with TestClient(app) as client:
+        token = _login(client)
+        h = {"Authorization": f"Bearer {token}"}
+
+        # a credential change + a prune should both be audited
+        oid = {p["key"]: p["id"] for p in client.get("/admin/providers", headers=h).json()}["llamaindex"]
+        client.patch(f"/admin/providers/{oid}", json={"config": {"api_key": "secret-val"}}, headers=h)
+        client.post("/admin/maintenance/prune", headers=h)
+
+        entries = client.get("/admin/audit-log", headers=h).json()
+        actions = [e["action"] for e in entries]
+        assert "provider.update" in actions
+        assert "maintenance.prune" in actions
+
+        upd = next(e for e in entries if e["action"] == "provider.update")
+        assert upd["actor_email"] == "admin@test.io"
+        assert upd["target"] == "llamaindex"
+        # detail records the key NAME only, never the secret value
+        assert upd["detail"]["config_set"] == ["api_key"]
+        import json as _json
+
+        assert "secret-val" not in _json.dumps(entries)
+
+        # audit log requires auth
+        assert client.get("/admin/audit-log").status_code == 401
+
+
 def test_maintenance_prune_endpoint():
     with TestClient(app) as client:
         token = _login(client)

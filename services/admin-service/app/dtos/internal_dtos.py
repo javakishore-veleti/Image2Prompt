@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from image2prompt_shared.dtos import BaseReq, BaseResp
 
-from ..models import AdminUser, CspViolation, Provider
+from ..models import AdminUser, AuditLog, CspViolation, Provider
 
 
 # --- auth ---
@@ -105,6 +105,8 @@ class CreateProviderReq(BaseReq):
     category: str = "generic"
     enabled: bool = False
     config: dict = field(default_factory=dict)
+    actor_id: Optional[str] = None
+    actor_email: Optional[str] = None
 
 
 @dataclass(kw_only=True)
@@ -121,6 +123,8 @@ class UpdateProviderReq(BaseReq):
     category: Optional[str] = None
     enabled: Optional[bool] = None
     config: Optional[dict] = None
+    actor_id: Optional[str] = None
+    actor_email: Optional[str] = None
 
 
 @dataclass(kw_only=True)
@@ -200,10 +204,34 @@ class CspStatsResp(BaseResp):
     top_directive: Optional[str] = None
 
 
+# --- audit log ---
+@dataclass(kw_only=True)
+class RecordAuditReq(BaseReq):
+    db: Session
+    action: str
+    actor_id: Optional[str] = None
+    actor_email: Optional[str] = None
+    target: Optional[str] = None
+    detail: dict = field(default_factory=dict)
+
+
+@dataclass(kw_only=True)
+class ListAuditReq(BaseReq):
+    db: Session
+    limit: int = 100
+
+
+@dataclass(kw_only=True)
+class AuditListResp(BaseResp):
+    entries: list[AuditLog] = field(default_factory=list)
+
+
 # --- maintenance ---
 @dataclass(kw_only=True)
 class PruneReq(BaseReq):
     db: Session
+    actor_id: Optional[str] = None
+    actor_email: Optional[str] = None
 
 
 @dataclass(kw_only=True)
@@ -215,6 +243,8 @@ class PruneResp(BaseResp):
 @dataclass(kw_only=True)
 class ReencryptReq(BaseReq):
     db: Session
+    actor_id: Optional[str] = None
+    actor_email: Optional[str] = None
 
 
 @dataclass(kw_only=True)

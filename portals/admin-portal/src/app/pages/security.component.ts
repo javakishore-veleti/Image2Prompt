@@ -1,6 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ApiService, CspDashboard, RotationStatus } from '../core/api.service';
+import { ApiService, AuditEntry, CspDashboard, RotationStatus } from '../core/api.service';
 import { AuthService } from '../core/auth.service';
 
 @Component({
@@ -68,6 +68,25 @@ import { AuthService } from '../core/auth.service';
     </div>
 
     <div class="card">
+      <h3>Admin audit log</h3>
+      <table *ngIf="audit().length; else noaudit">
+        <thead>
+          <tr><th>When</th><th>Actor</th><th>Action</th><th>Target</th><th>Detail</th></tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let a of audit()">
+            <td class="mono">{{ a.created_at | date: 'short' }}</td>
+            <td>{{ a.actor_email || '—' }}</td>
+            <td class="mono">{{ a.action }}</td>
+            <td class="mono">{{ a.target || '—' }}</td>
+            <td class="mono trunc">{{ detailText(a) }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <ng-template #noaudit><p class="muted">No admin actions recorded yet.</p></ng-template>
+    </div>
+
+    <div class="card">
       <div class="head">
         <h3>Recent reports</h3>
         <button class="ghost" (click)="load()" [disabled]="loading()">Refresh</button>
@@ -111,6 +130,7 @@ export class SecurityComponent {
   private auth = inject(AuthService);
   data = signal<CspDashboard | null>(null);
   rot = signal<RotationStatus | null>(null);
+  audit = signal<AuditEntry[]>([]);
   loading = signal(false);
   busy = signal(false);
   maintMsg = signal('');
@@ -119,6 +139,15 @@ export class SecurityComponent {
   constructor() {
     this.load();
     this.loadRotation();
+    this.api.auditLog().subscribe({ next: (a) => this.audit.set(a), error: () => {} });
+  }
+
+  detailText(a: AuditEntry): string {
+    try {
+      return JSON.stringify(a.detail ?? {});
+    } catch {
+      return '';
+    }
   }
 
   load(): void {
