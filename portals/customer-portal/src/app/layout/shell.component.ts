@@ -86,7 +86,7 @@ export class ShellComponent {
 
   nav: NavItem[] = [
     { label: 'Dashboard', link: '/dashboard' },
-    { label: 'Connections', disabled: true },
+    { label: 'Connections', link: '/connections' },
     { label: 'Projects', link: '/projects' },
     { label: 'Prompts', link: '/prompts' },
     { label: 'Preferences', link: '/preferences' },

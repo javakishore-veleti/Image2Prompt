@@ -3,7 +3,12 @@ from __future__ import annotations
 from image2prompt_shared.layers import BaseFacade
 from image2prompt_shared.observability import observe
 
-from ..dtos.internal_dtos import ProxyCustomersReq, ProxyCustomersResp
+from ..dtos.internal_dtos import (
+    CustomerConnectionsResp,
+    GetCustomerConnectionsReq,
+    ProxyCustomersReq,
+    ProxyCustomersResp,
+)
 from ..services.customer_directory_service import CustomerDirectoryService
 from .interfaces import ICustomersFacade
 
@@ -16,3 +21,7 @@ class CustomersFacade(BaseFacade, ICustomersFacade):
     @observe("CustomersFacade.search_customers")
     async def search_customers(self, req: ProxyCustomersReq) -> ProxyCustomersResp:
         return await self.directory_service.search(req)
+
+    @observe("CustomersFacade.get_connections")
+    async def get_connections(self, req: GetCustomerConnectionsReq) -> CustomerConnectionsResp:
+        return await self.directory_service.get_connections(req)

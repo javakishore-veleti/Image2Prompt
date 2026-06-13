@@ -6,7 +6,7 @@ from image2prompt_shared.api_errors import ensure_ok
 
 from ..deps import current_admin
 from ..di import get_customers_facade
-from ..dtos.internal_dtos import ProxyCustomersReq
+from ..dtos.internal_dtos import GetCustomerConnectionsReq, ProxyCustomersReq
 from ..facades.interfaces import ICustomersFacade
 from ..schemas import CustomerOut
 
@@ -25,3 +25,13 @@ async def list_customers(
         await facade.search_customers(ProxyCustomersReq(search=search, limit=limit, offset=offset))
     )
     return resp.customers
+
+
+@router.get("/{customer_id}/connections")
+async def customer_connections(
+    customer_id: str,
+    _=Depends(current_admin),
+    facade: ICustomersFacade = Depends(get_customers_facade),
+):
+    resp = ensure_ok(await facade.get_connections(GetCustomerConnectionsReq(customer_id=customer_id)))
+    return resp.connections

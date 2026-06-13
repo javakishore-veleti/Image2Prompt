@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from image2prompt_shared.dtos import BaseReq, BaseResp
 
-from ..models import Customer, CustomerPreference, PaymentSettings, Project
+from ..models import Connection, Customer, CustomerPreference, PaymentSettings, Project
 
 
 # --- auth ---
@@ -160,3 +160,72 @@ class BillingResp(BaseResp):
     receipts: list = field(default_factory=list)
     balance_due: float = 0.0
     currency: str = "USD"
+
+
+# --- connections (external file systems; mock OAuth for now) ---
+@dataclass(kw_only=True)
+class ConnectReq(BaseReq):
+    db: Session
+    customer_id: str
+    provider: str
+
+
+@dataclass(kw_only=True)
+class ListConnectionsReq(BaseReq):
+    db: Session
+    customer_id: str
+
+
+@dataclass(kw_only=True)
+class DisconnectReq(BaseReq):
+    db: Session
+    customer_id: str
+    connection_id: str
+
+
+@dataclass(kw_only=True)
+class CreateConnectionReq(BaseReq):
+    db: Session
+    customer_id: str
+    provider: str
+    display_name: str
+    account_email: Optional[str] = None
+    meta: dict = field(default_factory=dict)
+
+
+@dataclass(kw_only=True)
+class GetConnectionReq(BaseReq):
+    db: Session
+    customer_id: str
+    connection_id: str
+
+
+@dataclass(kw_only=True)
+class ListFilesReq(BaseReq):
+    db: Session
+    customer_id: str
+    connection_id: str
+    search: Optional[str] = None
+
+
+@dataclass(kw_only=True)
+class ConnectionResp(BaseResp):
+    connection: Optional[Connection] = None
+
+
+@dataclass(kw_only=True)
+class ConnectionListResp(BaseResp):
+    connections: list[Connection] = field(default_factory=list)
+
+
+@dataclass(kw_only=True)
+class FileItem:
+    id: str
+    name: str
+    mime_type: str
+    size: int
+
+
+@dataclass(kw_only=True)
+class FileListResp(BaseResp):
+    files: list[FileItem] = field(default_factory=list)

@@ -69,3 +69,23 @@ class PaymentSettingsOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     customer_id: str
     data: dict[str, Any] = {}
+
+
+class ConnectRequest(BaseModel):
+    provider: str
+
+
+class ConnectionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    provider: str
+    display_name: str
+    account_email: str | None = None
+    status: str
+
+
+class FileOut(BaseModel):
+    id: str
+    name: str
+    mime_type: str
+    size: int

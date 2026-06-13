@@ -55,3 +55,32 @@ def test_internal_customer_search():
         r = client.get("/internal/customers", params={"search": "bob"})
         assert r.status_code == 200
         assert any(c["email"] == "bob@example.com" for c in r.json())
+
+
+def test_connections_flow():
+    with TestClient(app) as client:
+        tok = client.post(
+            "/auth/signup", json={"email": "conn@example.com", "password": "pw123456"}
+        ).json()["access_token"]
+        h = {"Authorization": f"Bearer {tok}"}
+
+        # connect a mock Google Drive
+        r = client.post("/me/connections", json={"provider": "google_drive"}, headers=h)
+        assert r.status_code == 201, r.text
+        conn = r.json()
+        assert conn["provider"] == "google_drive" and conn["status"] == "connected"
+
+        # list connections
+        assert len(client.get("/me/connections", headers=h).json()) == 1
+
+        # mock files + search
+        files = client.get(f"/me/connections/{conn['id']}/files", headers=h).json()
+        assert len(files) >= 1
+        filtered = client.get(
+            f"/me/connections/{conn['id']}/files", params={"search": "sunset"}, headers=h
+        ).json()
+        assert all("sunset" in f["name"].lower() for f in filtered)
+
+        # disconnect
+        assert client.delete(f"/me/connections/{conn['id']}", headers=h).status_code == 204
+        assert client.get("/me/connections", headers=h).json() == []

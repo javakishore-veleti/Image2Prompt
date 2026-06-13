@@ -39,3 +39,18 @@ class PaymentSettings(Base, UUIDPkMixin, TimestampMixin):
 
     customer_id: Mapped[str] = mapped_column(String(36), unique=True, index=True)
     data: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class Connection(Base, UUIDPkMixin, TimestampMixin):
+    """A customer's connected external file system (Google Drive / OneDrive /
+    Dropbox / ...). OAuth is mocked for now; ``meta`` holds the (mock) token and
+    a sample file listing. The real OAuth handshake fills these in later."""
+
+    __tablename__ = "connections"
+
+    customer_id: Mapped[str] = mapped_column(String(36), index=True)
+    provider: Mapped[str] = mapped_column(String(50))
+    display_name: Mapped[str] = mapped_column(String(255))
+    account_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    status: Mapped[str] = mapped_column(String(50), default="connected")
+    meta: Mapped[dict] = mapped_column(JSON, default=dict)

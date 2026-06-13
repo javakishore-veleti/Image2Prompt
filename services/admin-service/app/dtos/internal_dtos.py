@@ -86,3 +86,13 @@ class ProxyCustomersReq(BaseReq):
 @dataclass(kw_only=True)
 class ProxyCustomersResp(BaseResp):
     customers: list = field(default_factory=list)
+
+
+@dataclass(kw_only=True)
+class GetCustomerConnectionsReq(BaseReq):
+    customer_id: str
+
+
+@dataclass(kw_only=True)
+class CustomerConnectionsResp(BaseResp):
+    connections: list = field(default_factory=list)

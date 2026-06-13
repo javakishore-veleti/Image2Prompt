@@ -49,6 +49,20 @@ class IPaymentsFacade(ABC):
     def get_billing(self, req: "dto.BillingReq") -> "dto.BillingResp": ...
 
 
+class IConnectionsFacade(ABC):
+    @abstractmethod
+    def connect(self, req: "dto.ConnectReq") -> "dto.ConnectionResp": ...
+
+    @abstractmethod
+    def list_connections(self, req: "dto.ListConnectionsReq") -> "dto.ConnectionListResp": ...
+
+    @abstractmethod
+    def disconnect(self, req: "dto.DisconnectReq") -> "dto.ConnectionResp": ...
+
+    @abstractmethod
+    def list_files(self, req: "dto.ListFilesReq") -> "dto.FileListResp": ...
+
+
 class IInternalFacade(ABC):
     @abstractmethod
     def search_customers(self, req: "dto.SearchCustomersReq") -> "dto.CustomerListResp": ...

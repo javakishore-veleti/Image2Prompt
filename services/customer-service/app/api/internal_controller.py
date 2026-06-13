@@ -6,10 +6,10 @@ from sqlalchemy.orm import Session
 from image2prompt_shared.api_errors import ensure_ok
 
 from ..deps import get_db
-from ..di import get_internal_facade
-from ..dtos.internal_dtos import GetByIdReq, GetPrefsReq, SearchCustomersReq
-from ..facades.interfaces import IInternalFacade
-from ..schemas import CustomerOut, PreferenceOut
+from ..di import get_connections_facade, get_internal_facade
+from ..dtos.internal_dtos import GetByIdReq, GetPrefsReq, ListConnectionsReq, SearchCustomersReq
+from ..facades.interfaces import IConnectionsFacade, IInternalFacade
+from ..schemas import ConnectionOut, CustomerOut, PreferenceOut
 
 router = APIRouter(prefix="/internal/customers", tags=["customers-internal"])
 
@@ -46,3 +46,14 @@ def get_preferences(
 ):
     resp = ensure_ok(facade.get_preferences(GetPrefsReq(db=db, customer_id=customer_id)))
     return resp.preference
+
+
+@router.get("/{customer_id}/connections", response_model=list[ConnectionOut])
+def get_connections(
+    customer_id: str,
+    db: Session = Depends(get_db),
+    facade: IConnectionsFacade = Depends(get_connections_facade),
+):
+    return ensure_ok(
+        facade.list_connections(ListConnectionsReq(db=db, customer_id=customer_id))
+    ).connections

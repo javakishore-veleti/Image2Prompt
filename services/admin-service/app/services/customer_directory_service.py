@@ -6,7 +6,12 @@ from image2prompt_shared.layers import BaseService
 from image2prompt_shared.observability import observe
 
 from ..config import settings
-from ..dtos.internal_dtos import ProxyCustomersReq, ProxyCustomersResp
+from ..dtos.internal_dtos import (
+    CustomerConnectionsResp,
+    GetCustomerConnectionsReq,
+    ProxyCustomersReq,
+    ProxyCustomersResp,
+)
 
 
 class CustomerDirectoryService(BaseService):
@@ -25,5 +30,18 @@ class CustomerDirectoryService(BaseService):
                 return ProxyCustomersResp(customers=resp.json())
         except httpx.HTTPError as exc:
             return ProxyCustomersResp.failure(
+                error_code="upstream_error", error_message=f"customer-service unavailable: {exc}"
+            )
+
+    @observe("CustomerDirectoryService.get_connections")
+    async def get_connections(self, req: GetCustomerConnectionsReq) -> CustomerConnectionsResp:
+        url = f"{settings.customer_service_url}/internal/customers/{req.customer_id}/connections"
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(url)
+                resp.raise_for_status()
+                return CustomerConnectionsResp(connections=resp.json())
+        except httpx.HTTPError as exc:
+            return CustomerConnectionsResp.failure(
                 error_code="upstream_error", error_message=f"customer-service unavailable: {exc}"
             )

@@ -26,3 +26,6 @@ class IProvidersFacade(ABC):
 class ICustomersFacade(ABC):
     @abstractmethod
     async def search_customers(self, req: "dto.ProxyCustomersReq") -> "dto.ProxyCustomersResp": ...
+
+    @abstractmethod
+    async def get_connections(self, req: "dto.GetCustomerConnectionsReq") -> "dto.CustomerConnectionsResp": ...

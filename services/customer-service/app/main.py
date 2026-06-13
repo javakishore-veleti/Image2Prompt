@@ -11,6 +11,7 @@ from image2prompt_shared.observability import init_observability
 
 from .api import (
     auth_controller,
+    connections_controller,
     internal_controller,
     payments_controller,
     profile_controller,
@@ -47,6 +48,7 @@ app.include_router(auth_controller.router)
 app.include_router(profile_controller.router)
 app.include_router(projects_controller.router)
 app.include_router(payments_controller.router)
+app.include_router(connections_controller.router)
 app.include_router(internal_controller.router)
 
 

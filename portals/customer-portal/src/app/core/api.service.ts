@@ -39,6 +39,21 @@ export interface Preferences {
   prefs: Record<string, unknown>;
 }
 
+export interface Connection {
+  id: string;
+  provider: string;
+  display_name: string;
+  account_email: string | null;
+  status: string;
+}
+
+export interface DriveFile {
+  id: string;
+  name: string;
+  mime_type: string;
+  size: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   private customer = `${environment.gatewayUrl}/api/customer`;
@@ -71,6 +86,24 @@ export class ApiService {
   }
   createProject(name: string): Observable<any> {
     return this.http.post(`${this.customer}/projects`, { name });
+  }
+
+  // --- Connections (cloud drives; mock OAuth) ---
+  connections(): Observable<Connection[]> {
+    return this.http.get<Connection[]>(`${this.customer}/me/connections`);
+  }
+  connect(provider: string): Observable<Connection> {
+    return this.http.post<Connection>(`${this.customer}/me/connections`, { provider });
+  }
+  disconnect(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.customer}/me/connections/${id}`);
+  }
+  connectionFiles(id: string, search?: string): Observable<DriveFile[]> {
+    let params = new HttpParams();
+    if (search) {
+      params = params.set('search', search);
+    }
+    return this.http.get<DriveFile[]>(`${this.customer}/me/connections/${id}/files`, { params });
   }
 
   // --- Providers available to run a request against ---
