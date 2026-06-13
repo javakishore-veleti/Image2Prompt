@@ -101,6 +101,12 @@ export class ApiService {
   connect(provider: string): Observable<Connection> {
     return this.http.post<Connection>(`${this.customer}/me/connections`, { provider });
   }
+  googleAuthorize(): Observable<{ authorize_url: string }> {
+    return this.http.post<{ authorize_url: string }>(
+      `${this.customer}/me/connections/google/authorize`,
+      {},
+    );
+  }
   disconnect(id: string): Observable<void> {
     return this.http.delete<void>(`${this.customer}/me/connections/${id}`);
   }

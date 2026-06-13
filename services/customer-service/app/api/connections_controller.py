@@ -1,18 +1,50 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from image2prompt_shared.api_errors import ensure_ok
 from image2prompt_shared.auth_dep import Principal
 
+from ..config import settings
 from ..deps import current_customer, get_db
 from ..di import get_connections_facade
-from ..dtos.internal_dtos import ConnectReq, DisconnectReq, ListConnectionsReq, ListFilesReq
+from ..dtos.internal_dtos import (
+    ConnectReq,
+    DisconnectReq,
+    GoogleAuthorizeReq,
+    GoogleCallbackReq,
+    ListConnectionsReq,
+    ListFilesReq,
+)
 from ..facades.interfaces import IConnectionsFacade
 from ..schemas import ConnectionOut, ConnectRequest, FileOut
 
 router = APIRouter(prefix="/me/connections", tags=["connections"])
+
+
+@router.post("/google/authorize")
+def google_authorize(
+    principal: Principal = Depends(current_customer),
+    db: Session = Depends(get_db),
+    facade: IConnectionsFacade = Depends(get_connections_facade),
+):
+    resp = ensure_ok(facade.google_authorize(GoogleAuthorizeReq(db=db, customer_id=principal.id)))
+    return {"authorize_url": resp.authorize_url}
+
+
+@router.get("/google/callback")
+def google_callback(
+    code: str = Query(...),
+    state: str = Query(...),
+    db: Session = Depends(get_db),
+    facade: IConnectionsFacade = Depends(get_connections_facade),
+):
+    # Public browser redirect from Google. Identity comes from the signed state.
+    resp = facade.google_callback(GoogleCallbackReq(db=db, code=code, state=state))
+    status = "connected" if resp.success else "error"
+    return RedirectResponse(url=f"{settings.google_oauth_success_redirect}?google={status}", status_code=302)
 
 
 @router.get("", response_model=list[ConnectionOut])

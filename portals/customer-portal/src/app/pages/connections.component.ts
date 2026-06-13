@@ -12,8 +12,8 @@ import { ApiService, Connection, DriveFile } from '../core/api.service';
     <div class="card">
       <p class="muted">Connect a cloud drive to browse images. (OAuth is mocked in this build.)</p>
       <div class="connect-row">
-        <button *ngFor="let p of available" class="ghost" (click)="connect(p.key)" [disabled]="busy()">
-          + {{ p.label }}
+        <button *ngFor="let p of available" class="ghost" (click)="connectProvider(p.key)" [disabled]="busy()">
+          + {{ p.label }}{{ p.key === 'google_drive' ? ' (OAuth)' : '' }}
         </button>
       </div>
       <p class="error" *ngIf="error()">{{ error() }}</p>
@@ -70,6 +70,23 @@ export class ConnectionsComponent {
 
   load(): void {
     this.api.connections().subscribe({ next: (c) => this.connections.set(c), error: () => {} });
+  }
+
+  connectProvider(provider: string): void {
+    if (provider === 'google_drive') {
+      // Real OAuth: get the consent URL, then send the browser to Google.
+      this.error.set('');
+      this.busy.set(true);
+      this.api.googleAuthorize().subscribe({
+        next: (r) => (window.location.href = r.authorize_url),
+        error: (err) => {
+          this.busy.set(false);
+          this.error.set(err?.error?.detail ?? 'Google is not configured');
+        },
+      });
+      return;
+    }
+    this.connect(provider);
   }
 
   connect(provider: string): void {

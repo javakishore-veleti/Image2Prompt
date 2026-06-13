@@ -55,6 +55,7 @@ PUBLIC_PATHS = {
     "/api/customer/auth/refresh",
     "/api/customer/auth/logout",
     "/api/admin/auth/logout",
+    "/api/customer/me/connections/google/callback",
     "/health",
 }
 

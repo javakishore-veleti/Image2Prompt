@@ -253,6 +253,25 @@ class ListFilesReq(BaseReq):
 
 
 @dataclass(kw_only=True)
+class GoogleAuthorizeReq(BaseReq):
+    db: Session
+    customer_id: str
+
+
+@dataclass(kw_only=True)
+class GoogleAuthorizeResp(BaseResp):
+    configured: bool = False
+    authorize_url: Optional[str] = None
+
+
+@dataclass(kw_only=True)
+class GoogleCallbackReq(BaseReq):
+    db: Session
+    code: str
+    state: str
+
+
+@dataclass(kw_only=True)
 class ConnectionResp(BaseResp):
     connection: Optional[Connection] = None
 

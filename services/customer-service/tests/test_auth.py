@@ -157,3 +157,42 @@ def test_refresh_rotation_blocks_reuse():
         # the newly issued refresh token still works
         nxt = client.post("/auth/refresh", json={"refresh_token": first.json()["refresh_token"]})
         assert nxt.status_code == 200
+
+
+def test_google_authorize_not_configured():
+    with TestClient(app) as client:
+        tok = client.post(
+            "/auth/signup", json={"email": "gd@example.com", "password": "pw123456"}
+        ).json()["access_token"]
+        h = {"Authorization": f"Bearer {tok}"}
+        # No GOOGLE_OAUTH_CLIENT_ID in tests -> graceful 400 not_configured
+        r = client.post("/me/connections/google/authorize", headers=h)
+        assert r.status_code == 400
+
+
+def test_google_authorize_url_when_configured(monkeypatch):
+    from app.config import settings as cfg
+
+    monkeypatch.setattr(cfg, "google_oauth_client_id", "test-client")
+    monkeypatch.setattr(cfg, "google_oauth_client_secret", "test-secret")
+    with TestClient(app) as client:
+        tok = client.post(
+            "/auth/signup", json={"email": "gd2@example.com", "password": "pw123456"}
+        ).json()["access_token"]
+        h = {"Authorization": f"Bearer {tok}"}
+        r = client.post("/me/connections/google/authorize", headers=h)
+        assert r.status_code == 200
+        url = r.json()["authorize_url"]
+        assert url.startswith("https://accounts.google.com/o/oauth2/v2/auth?")
+        assert "client_id=test-client" in url and "state=" in url
+
+
+def test_google_callback_bad_state_redirects_error():
+    with TestClient(app) as client:
+        r = client.get(
+            "/me/connections/google/callback",
+            params={"code": "x", "state": "not-a-valid-jwt"},
+            follow_redirects=False,
+        )
+        assert r.status_code == 302
+        assert "google=error" in r.headers["location"]

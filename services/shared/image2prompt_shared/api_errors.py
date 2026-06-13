@@ -15,6 +15,7 @@ ERROR_STATUS: dict[str, int] = {
     "not_found": 404,
     "conflict": 409,
     "no_providers": 400,
+    "not_configured": 400,
     "unprocessable": 422,
     "upstream_error": 502,
     "internal": 500,

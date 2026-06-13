@@ -28,6 +28,7 @@ from .facades.payments_facade import PaymentsFacade
 from .facades.profile_facade import ProfileFacade
 from .facades.projects_facade import ProjectsFacade
 from .services.connection_provider_service import ConnectionProviderService
+from .services.google_drive_service import GoogleDriveService
 from .services.stripe_service import StripeService
 from .services.token_service import TokenService
 
@@ -42,6 +43,7 @@ _revoked_token_dao = RevokedTokenDao()
 # --- Services ---
 _token_service = TokenService()
 _connection_provider_service = ConnectionProviderService()
+_google_drive_service = GoogleDriveService()
 _stripe_service = StripeService()
 
 # --- Facades (wired against interfaces) ---
@@ -65,6 +67,7 @@ _connections_facade: IConnectionsFacade = ConnectionsFacade(
     connection_dao=_connection_dao,
     customer_dao=_customer_dao,
     provider_service=_connection_provider_service,
+    google_drive_service=_google_drive_service,
 )
 
 
