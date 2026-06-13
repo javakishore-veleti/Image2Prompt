@@ -10,6 +10,8 @@ excepted) and reverse-proxies to the backing microservice based on path prefix:
 
 from __future__ import annotations
 
+import time
+import uuid
 from dataclasses import dataclass
 from typing import Callable
 
@@ -82,27 +84,74 @@ def _is_public(path: str) -> bool:
     return path in PUBLIC_PATHS
 
 
+# Fixed-window in-memory rate limiter. Key = JWT subject if present, else client IP.
+_RATE_WINDOWS: dict[tuple[str, int], int] = {}
+
+
+def _rate_key(request: Request) -> str:
+    auth = request.headers.get("authorization", "")
+    if auth.lower().startswith("bearer "):
+        try:
+            payload = decode_token(auth[7:], secret=settings.jwt_secret, algorithm=settings.jwt_algorithm)
+            return f"sub:{payload.get('sub')}"
+        except jwt.PyJWTError:
+            pass
+    return f"ip:{request.client.host if request.client else 'unknown'}"
+
+
+def _rate_limited(key: str) -> bool:
+    if not settings.rate_limit_enabled:
+        return False
+    window = int(time.time() // 60)
+    bucket = (key, window)
+    _RATE_WINDOWS[bucket] = _RATE_WINDOWS.get(bucket, 0) + 1
+    if len(_RATE_WINDOWS) > 10000:  # opportunistic cleanup of old windows
+        for k in [k for k in _RATE_WINDOWS if k[1] != window]:
+            _RATE_WINDOWS.pop(k, None)
+    return _RATE_WINDOWS[bucket] > settings.rate_limit_rpm
+
+
 @app.api_route("/api/{full_path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
 async def proxy(full_path: str, request: Request) -> Response:
     path = request.url.path
+    request_id = request.headers.get("x-request-id") or uuid.uuid4().hex
+
     route = _match_route(path)
     if route is None:
-        return JSONResponse(status_code=404, content={"detail": "No matching gateway route"})
+        return JSONResponse(
+            status_code=404, content={"detail": "No matching gateway route"},
+            headers={"X-Request-ID": request_id},
+        )
+
+    # Rate limit first (deterministic regardless of upstream/auth).
+    if _rate_limited(_rate_key(request)):
+        Metrics.counter_add("gateway.rate_limited", 1, {"prefix": route.prefix})
+        return JSONResponse(
+            status_code=429, content={"detail": "Rate limit exceeded"},
+            headers={"Retry-After": "60", "X-Request-ID": request_id},
+        )
 
     # Edge auth check (public routes excepted).
     if not _is_public(path):
         auth = request.headers.get("authorization", "")
         token = auth[7:] if auth.lower().startswith("bearer ") else ""
         if not token:
-            return JSONResponse(status_code=401, content={"detail": "Missing bearer token"})
+            return JSONResponse(
+                status_code=401, content={"detail": "Missing bearer token"},
+                headers={"X-Request-ID": request_id},
+            )
         try:
             decode_token(token, secret=settings.jwt_secret, algorithm=settings.jwt_algorithm)
         except jwt.PyJWTError:
-            return JSONResponse(status_code=401, content={"detail": "Invalid or expired token"})
+            return JSONResponse(
+                status_code=401, content={"detail": "Invalid or expired token"},
+                headers={"X-Request-ID": request_id},
+            )
 
     target_url = route.base_url + route.rewrite(path)
     body = await request.body()
     fwd_headers = {k: v for k, v in request.headers.items() if k.lower() not in _HOP_BY_HOP}
+    fwd_headers["X-Request-ID"] = request_id  # propagate correlation id downstream
 
     async with httpx.AsyncClient(timeout=120.0) as client:
         try:
@@ -119,10 +168,11 @@ async def proxy(full_path: str, request: Request) -> Response:
     Metrics.counter_add(
         "gateway.proxy", 1, {"prefix": route.prefix, "status": str(upstream.status_code)}
     )
-    log.info("proxy %s %s -> %s [%s]", request.method, path, target_url, upstream.status_code)
+    log.info("proxy %s %s -> %s [%s] req_id=%s", request.method, path, target_url, upstream.status_code, request_id)
     resp_headers = {
         k: v for k, v in upstream.headers.items() if k.lower() not in _HOP_BY_HOP
     }
+    resp_headers["X-Request-ID"] = request_id
     return Response(
         content=upstream.content,
         status_code=upstream.status_code,

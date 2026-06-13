@@ -29,14 +29,16 @@ jobs:
       - name: Run all test suites (SQLite-backed, no Postgres needed)
         run: |
           set -e
-          for svc in customer-service admin-service ai-adapters image-processing-service; do
+          for svc in gateway customer-service admin-service ai-adapters image-processing-service; do
             echo "::group::$svc"
             (cd "services/$svc" && python -m pytest -q)
             echo "::endgroup::"
           done
-          echo "::group::img2pmpt-caf-secret"
-          (cd libs/img2pmpt-caf-secret && python -m pytest -q)
-          echo "::endgroup::"
+          for lib in img2pmpt-caf-secret img2pmpt-caf-routers; do
+            echo "::group::$lib"
+            (cd "libs/$lib" && python -m pytest -q)
+            echo "::endgroup::"
+          done
 
   portal-build:
     name: Build Angular portals
