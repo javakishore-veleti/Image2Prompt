@@ -3,7 +3,9 @@ from __future__ import annotations
 from sqlalchemy import JSON, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from image2prompt_shared.base import Base, TimestampMixin, UUIDPkMixin
+from image2prompt_shared.base import TimestampMixin, UUIDPkMixin
+
+from .db import Base
 
 
 class FileRef(Base, UUIDPkMixin, TimestampMixin):
@@ -16,14 +18,14 @@ class FileRef(Base, UUIDPkMixin, TimestampMixin):
     location: Mapped[str] = mapped_column(String(1024))
     content_type: Mapped[str] = mapped_column(String(255), default="application/octet-stream")
     size: Mapped[int] = mapped_column(Integer, default=0)
-    # ``meta`` maps to a JSON column named "metadata" (SQLAlchemy reserves the
+    # ``meta`` maps to a column named "metadata" (SQLAlchemy reserves the
     # attribute name ``metadata`` on declarative classes).
     meta: Mapped[dict] = mapped_column("metadata", JSON, default=dict)
 
 
 class ProcReqLog(Base, UUIDPkMixin, TimestampMixin):
-    """One image-processing request. ``id`` is the request id referenced by
-    each provider response row."""
+    """One image-processing request. ``id`` is the request id referenced by each
+    provider response row."""
 
     __tablename__ = "proc_req_log"
 

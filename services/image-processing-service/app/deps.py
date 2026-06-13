@@ -1,15 +1,10 @@
 from __future__ import annotations
 
 from image2prompt_shared.auth_dep import make_principal_dep
-from image2prompt_shared.db import Database
 
 from .config import settings
-
-db = Database(settings.database_url)
-
-
-def get_db():
-    yield from db.session()
-
+from .db import get_db  # re-exported for controllers
 
 current_customer = make_principal_dep(settings, required_type="customer")
+
+__all__ = ["get_db", "current_customer"]
