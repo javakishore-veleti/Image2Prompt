@@ -48,18 +48,60 @@ backend (`local` now; S3/Azure/GCP stubbed) and are referenced everywhere by `fi
 The **mock** provider is enabled by default so the entire flow works with **zero cloud
 credentials**. Enable **bedrock** and provide AWS credentials to use real Claude on Bedrock.
 
-## Quick start
+## Service architecture (Python)
 
-### 1. Backend + Postgres (Docker)
+Every Python business service follows a strict **layered, shared-nothing**
+structure (see any service's `app/`):
 
-```bash
-cd infra
-cp .env.example .env          # tweak secrets / AWS creds if desired
-docker compose up --build
+```
+api (FastAPI controllers)  ->  facade (interface + impl)  ->  service  ->  dao
 ```
 
-This starts Postgres (with a database per service) and all five services. Tables are
-auto-created and providers + a seed admin are created on startup.
+- Controllers depend on facade **interfaces** (ABCs), resolved by a small DI
+  container (`app/di.py`). Flow is always facade → service → dao.
+- Every layer method takes exactly one `*Req` and returns one `*Resp` — no loose
+  positional args. The DB `Session` travels inside the `*Req`.
+- Components are **singletons** holding no per-request state (shared-nothing), so
+  one instance serves all concurrent requests safely.
+- Controllers translate a failed `*Resp` to HTTP via `ensure_ok`; layers never
+  raise HTTP errors.
+
+**Database:** one Postgres server, one database, **a schema per service**
+(`img2pmpt_admin`, `img2pmpt_customer`, `img2pmpt_image`). Schema + tables are
+created by **Alembic** on startup (SQLite tests skip schemas and use create_all).
+
+**Observability:** structured logging everywhere + **OpenTelemetry** traces and
+metrics (`@observe`, `Metrics`, span attributes), all **feature-toggled** and
+**fail-safe** — if disabled, the SDK is missing, or the collector is down,
+everything degrades to a no-op and the app keeps running.
+
+## Quick start (local dev)
+
+Everything is orchestrated from the repo root via `npm run local:*` scripts
+(thin wrappers over `DevOps/Local/*.sh`).
+
+```bash
+cp DevOps/Local/.env.example DevOps/Local/.env     # tweak secrets / OTEL / AWS
+
+# 1) Postgres — starts our container ONLY if nothing is already on :5432
+#    (an existing Postgres on the laptop is reused; services just create schemas).
+npm run local:containers:start-all
+
+# 2) Python venv (one-time): install shared lib + service deps
+python -m venv .venv && . .venv/bin/activate
+pip install ./services/shared boto3 email-validator
+# (gateway/customer/admin/ai-adapters/image all import the shared lib)
+
+# 3) Bring up services + portals together (portals need `npm install` first)
+npm run local:services-ui:start-all
+
+# status / shutdown
+npm run local:services-ui:status-all
+npm run local:shutdown:all          # portals + services + containers
+```
+
+Granular controls also exist: `local:containers:*`, `local:services:*`,
+`local:portals:*`, each with `start-all` / `stop-all` / `status-all`.
 
 | Service                    | URL                      |
 |----------------------------|--------------------------|
@@ -68,17 +110,11 @@ auto-created and providers + a seed admin are created on startup.
 | customer-service           | http://localhost:8002    |
 | ai-adapters                | http://localhost:8003    |
 | image-processing-service   | http://localhost:8004    |
+| customer-portal            | http://localhost:4200    |
+| admin-portal               | http://localhost:4300    |
 
-Seed admin (from `.env`): `admin@image2prompt.io` / `admin12345`.
-
-### 2. Portals (Angular)
-
-```bash
-cd portals/customer-portal && npm install && npm start   # http://localhost:4200
-cd portals/admin-portal    && npm install && npm start   # http://localhost:4300
-```
-
-Both portals talk to the gateway at `http://localhost:8000` (see
+Seed admin (from `DevOps/Local/.env`): `admin@image2prompt.io` / `admin12345`.
+Both portals talk to the gateway at `http://localhost:8000` (see each portal's
 `src/environments/environment.ts`).
 
 ### End-to-end walkthrough
@@ -94,19 +130,23 @@ Both portals talk to the gateway at `http://localhost:8000` (see
 
 ```
 services/
-  shared/                    image2prompt_shared: db, settings, security/JWT, auth deps,
-                             pluggable storage, http client
-  gateway/                   FastAPI edge: JWT validation + reverse proxy
-  customer-service/          auth, profile, preferences, projects, payments (stub)
-  image-processing-service/  upload → store → proc_req_log → fan-out → persist → list/search
-  ai-adapters/               provider registry + per-provider controllers
-  admin-service/             admin auth, providers CRUD/enable, customer search proxy
+  shared/                    image2prompt_shared: settings, schema-scoped Base,
+                             dtos (BaseReq/Resp), singleton, layer bases + interfaces,
+                             security/JWT, auth deps, storage, http client,
+                             logging, observability (OTEL), Alembic/seed bootstrap
+  gateway/                   FastAPI edge: JWT validation + reverse proxy (+ logging/OTEL)
+  customer-service/          api/facades/services/dao + dtos; img2pmpt_customer schema
+  admin-service/             api/facades/services/dao + dtos; img2pmpt_admin schema
+  ai-adapters/               api/facade/service + provider controllers (req/resp)
+  image-processing-service/  api/facade(orchestrator)/services/dao; img2pmpt_image schema
+  <each service>/alembic/    Alembic env + initial migration
 portals/
   customer-portal/           Angular — Dashboard, Connections (disabled), Projects,
                              Prompts, Payment Settings, Billing
   admin-portal/              Angular — Dashboard, Customer Search/Listing/Endpoints,
                              Providers
-infra/                       docker-compose, postgres init, .env.example
+DevOps/Local/                postgres docker-compose + start/stop/status scripts
+package.json                 root: local:* orchestration scripts (no app code)
 ```
 
 ## Testing
@@ -116,9 +156,10 @@ Each Python service has pytest smoke tests (SQLite-backed, no Postgres needed):
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install ./services/shared boto3 pytest httpx email-validator
-cd services/customer-service && python -m pytest      # signup/login/me, internal search
-cd services/admin-service    && python -m pytest      # seed admin login, provider toggle
-cd services/ai-adapters      && python -m pytest      # mock success, stub 501, unknown 404
+cd services/customer-service          && python -m pytest   # signup/login/me, internal search
+cd services/admin-service             && python -m pytest   # seed admin login, provider toggle
+cd services/ai-adapters               && python -m pytest   # mock success, stub 501, unknown 404
+cd services/image-processing-service  && python -m pytest   # orchestration (stubbed remotes)
 ```
 
 ## Scope
@@ -128,4 +169,5 @@ listing/search; admin auth + provider management + customer listing/search.
 
 **Stubbed / wired for later:** real Google Drive/OneDrive/S3/Azure/GCP connections &
 storage; real Stripe billing; the 7 non-Bedrock provider controllers; dashboard
-analytics; Alembic migrations; production auth hardening.
+analytics; production auth hardening. Initial Alembic migrations create tables from
+model metadata — future schema changes should be explicit, autogenerated migrations.
