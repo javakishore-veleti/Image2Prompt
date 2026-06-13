@@ -6,6 +6,8 @@ from image2prompt_shared.observability import observe
 from ..dao.customer_dao import CustomerDao
 from ..dao.preference_dao import PreferenceDao
 from ..dtos.internal_dtos import (
+    CountCustomersReq,
+    CountResp,
     CustomerListResp,
     CustomerResp,
     GetByIdReq,
@@ -27,6 +29,10 @@ class InternalFacade(BaseFacade, IInternalFacade):
     @observe("InternalFacade.search_customers")
     def search_customers(self, req: SearchCustomersReq) -> CustomerListResp:
         return self.customer_dao.search(req)
+
+    @observe("InternalFacade.count_customers")
+    def count_customers(self, req: CountCustomersReq) -> CountResp:
+        return self.customer_dao.count(req)
 
     @observe("InternalFacade.get_customer")
     def get_customer(self, req: GetByIdReq) -> CustomerResp:

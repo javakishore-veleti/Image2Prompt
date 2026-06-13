@@ -96,3 +96,29 @@ class GetCustomerConnectionsReq(BaseReq):
 @dataclass(kw_only=True)
 class CustomerConnectionsResp(BaseResp):
     connections: list = field(default_factory=list)
+
+
+# --- analytics ---
+@dataclass(kw_only=True)
+class FetchAnalyticsReq(BaseReq):
+    days: int = 14
+
+
+@dataclass(kw_only=True)
+class FetchAnalyticsResp(BaseResp):
+    customers: int = 0
+    image_stats: dict = field(default_factory=dict)
+
+
+@dataclass(kw_only=True)
+class GetAnalyticsReq(BaseReq):
+    db: Session
+    days: int = 14
+
+
+@dataclass(kw_only=True)
+class AnalyticsResp(BaseResp):
+    customers: int = 0
+    providers_total: int = 0
+    providers_enabled: int = 0
+    image_stats: dict = field(default_factory=dict)

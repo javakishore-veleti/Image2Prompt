@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 
 from image2prompt_shared.layers import BaseDao
 from image2prompt_shared.observability import observe
 
 from ..dtos.internal_dtos import (
+    CountCustomersReq,
+    CountResp,
     CreateCustomerReq,
     CustomerListResp,
     CustomerResp,
@@ -43,3 +45,7 @@ class CustomerDao(BaseDao):
             stmt = stmt.where(or_(Customer.email.ilike(like), Customer.name.ilike(like)))
         stmt = stmt.order_by(Customer.created_at.desc()).limit(req.limit).offset(req.offset)
         return CustomerListResp(customers=list(req.db.scalars(stmt).all()))
+
+    @observe("CustomerDao.count")
+    def count(self, req: CountCustomersReq) -> CountResp:
+        return CountResp(count=int(req.db.scalar(select(func.count(Customer.id))) or 0))

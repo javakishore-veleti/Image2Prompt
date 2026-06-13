@@ -19,6 +19,7 @@ from app.dtos.internal_dtos import (  # noqa: E402
     ListPromptsReq,
     ProcessImageReq,
     ResolveProvidersResp,
+    StatsReq,
 )
 
 db.bootstrap(base=Base, settings=type("S", (), {"run_migrations_on_startup": False})())
@@ -63,6 +64,31 @@ def test_process_image_and_list_prompts(monkeypatch):
         prompts = _image_facade.list_prompts(ListPromptsReq(db=session, customer_id="cust-1"))
         assert len(prompts.items) == 1
         assert prompts.items[0].output_text == "a prompt"
+    finally:
+        session.close()
+
+
+def test_stats_after_generate(monkeypatch):
+    monkeypatch.setattr(_image_facade.resolution_service, "resolve", _stub_resolve())
+    monkeypatch.setattr(_image_facade.dispatch_service, "invoke", _stub_dispatch())
+    session = db.SessionLocal()
+    try:
+        asyncio.run(
+            _image_facade.process_image(
+                ProcessImageReq(
+                    db=session,
+                    customer_id="cust-stats",
+                    image_bytes=b"x",
+                    content_type="image/png",
+                    filename="x.png",
+                    instruction="describe",
+                )
+            )
+        )
+        stats = _image_facade.stats(StatsReq(db=session))
+        assert stats.total_requests >= 1
+        assert any(p["provider_key"] == "mock" for p in stats.providers)
+        assert stats.by_status.get("completed", 0) >= 1
     finally:
         session.close()
 

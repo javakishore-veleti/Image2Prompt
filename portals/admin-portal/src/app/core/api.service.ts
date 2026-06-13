@@ -41,6 +41,10 @@ export class ApiService {
     return this.http.get<any[]>(`${this.admin}/customers/${customerId}/connections`);
   }
 
+  analytics(): Observable<any> {
+    return this.http.get(`${this.admin}/analytics`);
+  }
+
   updateProvider(id: string, body: Partial<Provider>): Observable<Provider> {
     return this.http.patch<Provider>(`${this.admin}/providers/${id}`, body);
   }

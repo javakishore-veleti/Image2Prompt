@@ -9,7 +9,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from image2prompt_shared.logging_config import configure_logging, get_logger
 from image2prompt_shared.observability import init_observability
 
-from .api import prompts_controller, providers_controller, requests_controller
+from .api import (
+    internal_controller,
+    prompts_controller,
+    providers_controller,
+    requests_controller,
+)
 from .config import settings
 from .db import Base, db
 
@@ -40,6 +45,7 @@ app.add_middleware(
 app.include_router(requests_controller.router)
 app.include_router(prompts_controller.router)
 app.include_router(providers_controller.router)
+app.include_router(internal_controller.router)
 
 
 @app.get("/health", tags=["health"])

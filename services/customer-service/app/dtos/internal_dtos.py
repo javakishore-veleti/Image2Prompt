@@ -78,6 +78,16 @@ class CustomerListResp(BaseResp):
     customers: list[Customer] = field(default_factory=list)
 
 
+@dataclass(kw_only=True)
+class CountCustomersReq(BaseReq):
+    db: Session
+
+
+@dataclass(kw_only=True)
+class CountResp(BaseResp):
+    count: int = 0
+
+
 # --- preferences ---
 @dataclass(kw_only=True)
 class GetPrefsReq(BaseReq):

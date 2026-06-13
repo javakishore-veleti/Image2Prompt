@@ -20,3 +20,6 @@ class IImageFacade(ABC):
 
     @abstractmethod
     async def list_providers(self, req: "dto.ListEnabledProvidersReq") -> "dto.EnabledProvidersResp": ...
+
+    @abstractmethod
+    def stats(self, req: "dto.StatsReq") -> "dto.StatsResp": ...

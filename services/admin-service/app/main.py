@@ -9,7 +9,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from image2prompt_shared.logging_config import configure_logging, get_logger
 from image2prompt_shared.observability import init_observability
 
-from .api import auth_controller, customers_controller, providers_controller
+from .api import (
+    analytics_controller,
+    auth_controller,
+    customers_controller,
+    providers_controller,
+)
 from .config import settings
 from .db import Base, db
 from .seed import seed
@@ -42,6 +47,7 @@ app.include_router(auth_controller.router)
 app.include_router(providers_controller.router)
 app.include_router(providers_controller.internal)
 app.include_router(customers_controller.router)
+app.include_router(analytics_controller.router)
 
 
 @app.get("/health", tags=["health"])

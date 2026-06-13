@@ -72,6 +72,21 @@ class ResolveProvidersResp(BaseResp):
     storage_backend: str = "local"
 
 
+# --- analytics (global, for admin) ---
+@dataclass(kw_only=True)
+class StatsReq(BaseReq):
+    db: Session
+    days: int = 14
+
+
+@dataclass(kw_only=True)
+class StatsResp(BaseResp):
+    total_requests: int = 0
+    by_status: dict = field(default_factory=dict)
+    providers: list[dict] = field(default_factory=list)
+    over_time: list[dict] = field(default_factory=list)
+
+
 # --- available providers (remote: admin) ---
 @dataclass(kw_only=True)
 class ListEnabledProvidersReq(BaseReq):

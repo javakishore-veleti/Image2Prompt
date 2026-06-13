@@ -7,7 +7,13 @@ from image2prompt_shared.api_errors import ensure_ok
 
 from ..deps import get_db
 from ..di import get_connections_facade, get_internal_facade
-from ..dtos.internal_dtos import GetByIdReq, GetPrefsReq, ListConnectionsReq, SearchCustomersReq
+from ..dtos.internal_dtos import (
+    CountCustomersReq,
+    GetByIdReq,
+    GetPrefsReq,
+    ListConnectionsReq,
+    SearchCustomersReq,
+)
 from ..facades.interfaces import IConnectionsFacade, IInternalFacade
 from ..schemas import ConnectionOut, CustomerOut, PreferenceOut
 
@@ -26,6 +32,15 @@ def list_customers(
         facade.search_customers(SearchCustomersReq(db=db, search=search, limit=limit, offset=offset))
     )
     return resp.customers
+
+
+# Defined before /{customer_id} so "count" isn't captured as an id.
+@router.get("/count")
+def count_customers(
+    db: Session = Depends(get_db),
+    facade: IInternalFacade = Depends(get_internal_facade),
+):
+    return {"count": ensure_ok(facade.count_customers(CountCustomersReq(db=db))).count}
 
 
 @router.get("/{customer_id}", response_model=CustomerOut)

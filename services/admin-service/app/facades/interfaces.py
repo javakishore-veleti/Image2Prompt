@@ -23,6 +23,11 @@ class IProvidersFacade(ABC):
     def update_provider(self, req: "dto.UpdateProviderReq") -> "dto.ProviderResp": ...
 
 
+class IAnalyticsFacade(ABC):
+    @abstractmethod
+    async def get_analytics(self, req: "dto.GetAnalyticsReq") -> "dto.AnalyticsResp": ...
+
+
 class ICustomersFacade(ABC):
     @abstractmethod
     async def search_customers(self, req: "dto.ProxyCustomersReq") -> "dto.ProxyCustomersResp": ...

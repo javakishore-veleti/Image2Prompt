@@ -4,10 +4,17 @@ from __future__ import annotations
 
 from .dao.admin_user_dao import AdminUserDao
 from .dao.provider_dao import ProviderDao
+from .facades.analytics_facade import AnalyticsFacade
 from .facades.auth_facade import AdminAuthFacade
 from .facades.customers_facade import CustomersFacade
-from .facades.interfaces import IAdminAuthFacade, ICustomersFacade, IProvidersFacade
+from .facades.interfaces import (
+    IAdminAuthFacade,
+    IAnalyticsFacade,
+    ICustomersFacade,
+    IProvidersFacade,
+)
 from .facades.providers_facade import ProvidersFacade
+from .services.analytics_service import AnalyticsService
 from .services.customer_directory_service import CustomerDirectoryService
 from .services.token_service import AdminTokenService
 
@@ -18,6 +25,7 @@ _provider_dao = ProviderDao()
 # Services
 _token_service = AdminTokenService()
 _directory_service = CustomerDirectoryService()
+_analytics_service = AnalyticsService()
 
 # Facades (wired against interfaces)
 _auth_facade: IAdminAuthFacade = AdminAuthFacade(
@@ -25,6 +33,9 @@ _auth_facade: IAdminAuthFacade = AdminAuthFacade(
 )
 _providers_facade: IProvidersFacade = ProvidersFacade(provider_dao=_provider_dao)
 _customers_facade: ICustomersFacade = CustomersFacade(directory_service=_directory_service)
+_analytics_facade: IAnalyticsFacade = AnalyticsFacade(
+    provider_dao=_provider_dao, analytics_service=_analytics_service
+)
 
 
 def get_auth_facade() -> IAdminAuthFacade:
@@ -37,3 +48,7 @@ def get_providers_facade() -> IProvidersFacade:
 
 def get_customers_facade() -> ICustomersFacade:
     return _customers_facade
+
+
+def get_analytics_facade() -> IAnalyticsFacade:
+    return _analytics_facade

@@ -71,6 +71,9 @@ class IInternalFacade(ABC):
     def search_customers(self, req: "dto.SearchCustomersReq") -> "dto.CustomerListResp": ...
 
     @abstractmethod
+    def count_customers(self, req: "dto.CountCustomersReq") -> "dto.CountResp": ...
+
+    @abstractmethod
     def get_customer(self, req: "dto.GetByIdReq") -> "dto.CustomerResp": ...
 
     @abstractmethod
