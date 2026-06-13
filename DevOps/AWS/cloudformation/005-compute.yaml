@@ -74,6 +74,21 @@ Resources:
             Statement:
               - { Effect: Allow, Action: [secretsmanager:GetSecretValue], Resource: !ImportValue img2pmpt-AppSecretArn }
               - { Effect: Allow, Action: [bedrock:InvokeModel], Resource: "*" }
+              # ADOT collector sidecar -> X-Ray (traces) + CloudWatch EMF (metrics)
+              - Effect: Allow
+                Action:
+                  - xray:PutTraceSegments
+                  - xray:PutTelemetryRecords
+                  - xray:GetSamplingRules
+                  - xray:GetSamplingTargets
+                  - xray:GetSamplingStatisticSummaries
+                  - cloudwatch:PutMetricData
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - logs:DescribeLogStreams
+                  - logs:DescribeLogGroups
+                Resource: "*"
 
   # ---------------- Load balancer ----------------
   Alb:
@@ -179,9 +194,22 @@ Resources:
             - { Name: CUSTOMER_SERVICE_URL, Value: "http://customer-service.img2pmpt.local:8002" }
             - { Name: AI_ADAPTERS_URL, Value: "http://ai-adapters.img2pmpt.local:8003" }
             - { Name: IMAGE_SERVICE_URL, Value: "http://image-processing-service.img2pmpt.local:8004" }
+            - { Name: OTEL_ENABLED, Value: "true" }
+            - { Name: OTEL_EXPORTER_OTLP_ENDPOINT, Value: "http://localhost:4317" }
+            - { Name: OTEL_SERVICE_NAMESPACE, Value: image2prompt }
+          DependsOn:
+            - { ContainerName: aws-otel-collector, Condition: START }
           LogConfiguration:
             LogDriver: awslogs
             Options: { awslogs-group: !Ref LogGroup, awslogs-region: !Ref AWS::Region, awslogs-stream-prefix: gateway }
+        - &otel_sidecar
+          Name: aws-otel-collector
+          Image: public.ecr.aws/aws-observability/aws-otel-collector:v0.41.1
+          Essential: false
+          Command: ["--config=/etc/ecs/ecs-default-config.yaml"]
+          LogConfiguration:
+            LogDriver: awslogs
+            Options: { awslogs-group: !Ref LogGroup, awslogs-region: !Ref AWS::Region, awslogs-stream-prefix: otel }
 
   CustomerTaskDef:
     Type: AWS::ECS::TaskDefinition
@@ -203,9 +231,15 @@ Resources:
             - { Name: CAF_SECRET_AWS_REGION, Value: !Ref AWS::Region }
             - { Name: CAF_SECRET_AWS_SECRET_NAME, Value: !ImportValue img2pmpt-AppSecretName }
             - { Name: DB_SCHEMA, Value: img2pmpt_customer }
+            - { Name: OTEL_ENABLED, Value: "true" }
+            - { Name: OTEL_EXPORTER_OTLP_ENDPOINT, Value: "http://localhost:4317" }
+            - { Name: OTEL_SERVICE_NAMESPACE, Value: image2prompt }
+          DependsOn:
+            - { ContainerName: aws-otel-collector, Condition: START }
           LogConfiguration:
             LogDriver: awslogs
             Options: { awslogs-group: !Ref LogGroup, awslogs-region: !Ref AWS::Region, awslogs-stream-prefix: customer-service }
+        - *otel_sidecar
 
   AdminTaskDef:
     Type: AWS::ECS::TaskDefinition
@@ -228,9 +262,15 @@ Resources:
             - { Name: CAF_SECRET_AWS_SECRET_NAME, Value: !ImportValue img2pmpt-AppSecretName }
             - { Name: DB_SCHEMA, Value: img2pmpt_admin }
             - { Name: CUSTOMER_SERVICE_URL, Value: "http://customer-service.img2pmpt.local:8002" }
+            - { Name: OTEL_ENABLED, Value: "true" }
+            - { Name: OTEL_EXPORTER_OTLP_ENDPOINT, Value: "http://localhost:4317" }
+            - { Name: OTEL_SERVICE_NAMESPACE, Value: image2prompt }
+          DependsOn:
+            - { ContainerName: aws-otel-collector, Condition: START }
           LogConfiguration:
             LogDriver: awslogs
             Options: { awslogs-group: !Ref LogGroup, awslogs-region: !Ref AWS::Region, awslogs-stream-prefix: admin-service }
+        - *otel_sidecar
 
   AiAdaptersTaskDef:
     Type: AWS::ECS::TaskDefinition
@@ -252,9 +292,15 @@ Resources:
             - { Name: CAF_SECRET_AWS_REGION, Value: !Ref AWS::Region }
             - { Name: CAF_SECRET_AWS_SECRET_NAME, Value: !ImportValue img2pmpt-AppSecretName }
             - { Name: AWS_REGION, Value: !Ref AWS::Region }
+            - { Name: OTEL_ENABLED, Value: "true" }
+            - { Name: OTEL_EXPORTER_OTLP_ENDPOINT, Value: "http://localhost:4317" }
+            - { Name: OTEL_SERVICE_NAMESPACE, Value: image2prompt }
+          DependsOn:
+            - { ContainerName: aws-otel-collector, Condition: START }
           LogConfiguration:
             LogDriver: awslogs
             Options: { awslogs-group: !Ref LogGroup, awslogs-region: !Ref AWS::Region, awslogs-stream-prefix: ai-adapters }
+        - *otel_sidecar
 
   ImageTaskDef:
     Type: AWS::ECS::TaskDefinition
@@ -279,9 +325,15 @@ Resources:
             - { Name: ADMIN_SERVICE_URL, Value: "http://admin-service.img2pmpt.local:8001" }
             - { Name: CUSTOMER_SERVICE_URL, Value: "http://customer-service.img2pmpt.local:8002" }
             - { Name: AI_ADAPTERS_URL, Value: "http://ai-adapters.img2pmpt.local:8003" }
+            - { Name: OTEL_ENABLED, Value: "true" }
+            - { Name: OTEL_EXPORTER_OTLP_ENDPOINT, Value: "http://localhost:4317" }
+            - { Name: OTEL_SERVICE_NAMESPACE, Value: image2prompt }
+          DependsOn:
+            - { ContainerName: aws-otel-collector, Condition: START }
           LogConfiguration:
             LogDriver: awslogs
             Options: { awslogs-group: !Ref LogGroup, awslogs-region: !Ref AWS::Region, awslogs-stream-prefix: image-processing-service }
+        - *otel_sidecar
 
   # ---------------- Services ----------------
   GatewayService:

@@ -71,10 +71,15 @@ api (FastAPI controllers)  ->  facade (interface + impl)  ->  service  ->  dao
 (`img2pmpt_admin`, `img2pmpt_customer`, `img2pmpt_image`). Schema + tables are
 created by **Alembic** on startup (SQLite tests skip schemas and use create_all).
 
-**Observability:** structured logging everywhere + **OpenTelemetry** traces and
-metrics (`@observe`, `Metrics`, span attributes), all **feature-toggled** and
-**fail-safe** — if disabled, the SDK is missing, or the collector is down,
-everything degrades to a no-op and the app keeps running.
+**Observability:** structured logging + **OpenTelemetry** traces and metrics
+(`@observe`, `Metrics`, span attributes) with FastAPI/httpx/SQLAlchemy
+auto-instrumentation and W3C trace propagation, so traces stitch across
+gateway → service → ai-adapters. All **feature-toggled** and **fail-safe** —
+disabled, SDK missing, or collector down all degrade to no-op. Locally,
+`npm run local:containers:start-all` brings up an **OTel Collector + Jaeger +
+Prometheus + Grafana** stack (each reused if already running); in AWS each ECS
+task runs an **ADOT collector sidecar** exporting to X-Ray + CloudWatch.
+Jaeger UI :16686 · Grafana :3000 · Prometheus :9090.
 
 ## Configuration & secrets
 
