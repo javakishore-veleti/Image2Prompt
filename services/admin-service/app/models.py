@@ -3,7 +3,9 @@ from __future__ import annotations
 from sqlalchemy import JSON, Boolean, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from image2prompt_shared.base import Base, TimestampMixin, UUIDPkMixin
+from image2prompt_shared.base import TimestampMixin, UUIDPkMixin
+
+from .db import Base
 
 
 class AdminUser(Base, UUIDPkMixin, TimestampMixin):
@@ -15,13 +17,6 @@ class AdminUser(Base, UUIDPkMixin, TimestampMixin):
 
 
 class Provider(Base, UUIDPkMixin, TimestampMixin):
-    """An AI provider the platform can dispatch process requests to.
-
-    ``key`` is the stable identifier shared with the ai-adapters registry
-    (bedrock, anthropic, openai, ...). ``enabled`` is the global on/off switch
-    admins control. ``config`` holds arbitrary provider settings as JSON.
-    """
-
     __tablename__ = "providers"
 
     key: Mapped[str] = mapped_column(String(100), unique=True, index=True)

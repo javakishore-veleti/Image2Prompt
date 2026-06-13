@@ -1,0 +1,78 @@
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
+
+from image2prompt_shared.api_errors import ensure_ok
+
+from ..deps import current_admin, get_db
+from ..di import get_providers_facade
+from ..dtos.internal_dtos import CreateProviderReq, ListProvidersReq, UpdateProviderReq
+from ..facades.interfaces import IProvidersFacade
+from ..schemas import ProviderCreate, ProviderOut, ProviderUpdate
+
+# Admin-facing CRUD (JWT-protected).
+router = APIRouter(prefix="/admin/providers", tags=["providers"])
+# Service-to-service (trusted network) — used by image-processing-service.
+internal = APIRouter(prefix="/internal/providers", tags=["providers-internal"])
+
+
+@router.get("", response_model=list[ProviderOut])
+def list_providers(
+    _=Depends(current_admin),
+    db: Session = Depends(get_db),
+    facade: IProvidersFacade = Depends(get_providers_facade),
+):
+    return ensure_ok(facade.list_providers(ListProvidersReq(db=db))).providers
+
+
+@router.post("", response_model=ProviderOut, status_code=201)
+def create_provider(
+    payload: ProviderCreate,
+    _=Depends(current_admin),
+    db: Session = Depends(get_db),
+    facade: IProvidersFacade = Depends(get_providers_facade),
+):
+    return ensure_ok(
+        facade.create_provider(
+            CreateProviderReq(
+                db=db,
+                key=payload.key,
+                name=payload.name,
+                category=payload.category,
+                enabled=payload.enabled,
+                config=payload.config,
+            )
+        )
+    ).provider
+
+
+@router.patch("/{provider_id}", response_model=ProviderOut)
+def update_provider(
+    provider_id: str,
+    payload: ProviderUpdate,
+    _=Depends(current_admin),
+    db: Session = Depends(get_db),
+    facade: IProvidersFacade = Depends(get_providers_facade),
+):
+    return ensure_ok(
+        facade.update_provider(
+            UpdateProviderReq(
+                db=db,
+                provider_id=provider_id,
+                name=payload.name,
+                category=payload.category,
+                enabled=payload.enabled,
+                config=payload.config,
+            )
+        )
+    ).provider
+
+
+@internal.get("", response_model=list[ProviderOut])
+def internal_list_providers(
+    enabled: bool | None = None,
+    db: Session = Depends(get_db),
+    facade: IProvidersFacade = Depends(get_providers_facade),
+):
+    return ensure_ok(facade.list_providers(ListProvidersReq(db=db, enabled=enabled))).providers

@@ -1,3 +1,5 @@
+"""HTTP request/response models (pydantic) at the API boundary."""
+
 from __future__ import annotations
 
 from typing import Any
@@ -19,7 +21,6 @@ class TokenResponse(BaseModel):
 
 class ProviderOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
-
     id: str
     key: str
     name: str

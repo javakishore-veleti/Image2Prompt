@@ -1,23 +1,30 @@
 from __future__ import annotations
 
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from image2prompt_shared.base import Base
+from image2prompt_shared.logging_config import configure_logging, get_logger
+from image2prompt_shared.observability import init_observability
 
+from .api import auth_controller, customers_controller, providers_controller
 from .config import settings
-from .deps import db
-from .routers import auth, customers, providers
+from .db import Base, db
 from .seed import seed
+
+configure_logging(service_name=settings.service_name, level=settings.log_level, as_json=settings.log_json)
+init_observability(settings)
+log = get_logger(__name__)
+
+SERVICE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    db.create_all(Base)
-    with db.SessionLocal() as session:
-        seed(session)
+    log.info("starting %s (schema=%s)", settings.service_name, settings.db_schema)
+    db.bootstrap(base=Base, settings=settings, service_dir=SERVICE_DIR, seed_fn=seed)
     yield
 
 
@@ -31,12 +38,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth.router)
-app.include_router(providers.router)
-app.include_router(providers.internal)
-app.include_router(customers.router)
+app.include_router(auth_controller.router)
+app.include_router(providers_controller.router)
+app.include_router(providers_controller.internal)
+app.include_router(customers_controller.router)
 
 
 @app.get("/health", tags=["health"])
 def health():
-    return {"status": "ok", "service": "admin-service"}
+    return {"status": "ok", "service": settings.service_name}
