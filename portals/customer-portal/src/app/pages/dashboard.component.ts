@@ -22,6 +22,13 @@ import { ApiService, ProcRequest } from '../core/api.service';
           <label>Instruction</label>
           <textarea rows="3" [(ngModel)]="instruction"></textarea>
         </div>
+        <div class="field" *ngIf="projects().length">
+          <label>Project <span class="muted">(optional)</span></label>
+          <select [(ngModel)]="projectId">
+            <option value="">— none —</option>
+            <option *ngFor="let p of projects()" [value]="p.id">{{ p.name }}</option>
+          </select>
+        </div>
         <div class="field" *ngIf="providers().length">
           <label>Providers <span class="muted">(optional — none = your defaults)</span></label>
           <div class="providers">
@@ -91,10 +98,16 @@ export class DashboardComponent {
   result = signal<ProcRequest | null>(null);
   providers = signal<{ key: string; name: string }[]>([]);
   selected = new Set<string>();
+  projects = signal<{ id: string; name: string }[]>([]);
+  projectId = '';
 
   constructor() {
     this.api.availableProviders().subscribe({
       next: (p) => this.providers.set(p),
+      error: () => {},
+    });
+    this.api.projects().subscribe({
+      next: (p) => this.projects.set(p),
       error: () => {},
     });
   }
@@ -119,7 +132,7 @@ export class DashboardComponent {
     this.loading.set(true);
     this.result.set(null);
     const providers = this.selected.size ? Array.from(this.selected).join(',') : undefined;
-    this.api.generate(this.file, this.instruction, providers).subscribe({
+    this.api.generate(this.file, this.instruction, providers, this.projectId || undefined).subscribe({
       next: (res) => {
         this.result.set(res);
         this.loading.set(false);

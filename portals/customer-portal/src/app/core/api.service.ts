@@ -69,6 +69,9 @@ export class ApiService {
   projects(): Observable<any[]> {
     return this.http.get<any[]>(`${this.customer}/projects`);
   }
+  createProject(name: string): Observable<any> {
+    return this.http.post(`${this.customer}/projects`, { name });
+  }
 
   // --- Providers available to run a request against ---
   availableProviders(): Observable<{ key: string; name: string }[]> {
@@ -76,12 +79,15 @@ export class ApiService {
   }
 
   // --- Image processing ---
-  generate(file: File, instruction: string, providers?: string): Observable<ProcRequest> {
+  generate(file: File, instruction: string, providers?: string, projectId?: string): Observable<ProcRequest> {
     const form = new FormData();
     form.append('image', file);
     form.append('instruction', instruction);
     if (providers) {
       form.append('providers', providers);
+    }
+    if (projectId) {
+      form.append('project_id', projectId);
     }
     return this.http.post<ProcRequest>(`${this.images}/requests`, form);
   }
