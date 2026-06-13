@@ -11,11 +11,13 @@ from ..config import settings
 from ..dao.provider_dao import ProviderDao
 from ..dtos.internal_dtos import (
     CreateProviderReq,
+    GetProviderReq,
     ListProvidersReq,
     ProviderListResp,
     ProviderResp,
     UpdateProviderReq,
 )
+from ..masking import merge_with_existing
 from ..models import Provider
 from .interfaces import IProvidersFacade
 
@@ -72,7 +74,11 @@ class ProvidersFacade(BaseFacade, IProvidersFacade):
     @observe("ProvidersFacade.update_provider")
     def update_provider(self, req: UpdateProviderReq) -> ProviderResp:
         if req.config is not None:
-            req.config = self._seal_config(req.config)
+            # Restore any masked (unchanged) secrets from the stored config, then
+            # re-seal the merged result before persisting.
+            current = self.provider_dao.get(GetProviderReq(db=req.db, provider_id=req.provider_id))
+            existing = self._open_config(current.provider.config) if current.success else {}
+            req.config = self._seal_config(merge_with_existing(req.config, existing))
         resp = self.provider_dao.update(req)
         if resp.success:
             req.db.commit()

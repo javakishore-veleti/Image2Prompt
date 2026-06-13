@@ -16,7 +16,14 @@ COPY portals/admin-portal portals/admin-portal
 RUN cd portals/admin-portal && npm run build -- --base-href=/admin/
 
 FROM nginx:alpine
-COPY portals/nginx.conf /etc/nginx/conf.d/default.conf
+# Served as an envsubst template: the entrypoint renders CSP_* vars into the
+# config at container start. Override these in the ECS task def for cross-origin
+# API (CSP_CONNECT_SRC) or report-only rollout (CSP_HEADER_NAME).
+ENV CSP_HEADER_NAME="Content-Security-Policy" \
+    CSP_CONNECT_SRC="'self'" \
+    CSP_REPORT_URI="/api/csp-report" \
+    NGINX_ENVSUBST_FILTER="^CSP_"
+COPY portals/default.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /build/portals/customer-portal/dist/customer-portal/browser /usr/share/nginx/html
 COPY --from=build /build/portals/admin-portal/dist/admin-portal/browser /usr/share/nginx/html/admin
 EXPOSE 80

@@ -50,3 +50,12 @@ def test_body_size_limit_returns_413(monkeypatch):
     monkeypatch.setattr(settings, "max_body_bytes", 5)
     r = client.post("/api/customer/auth/login", json={"email": "a@b.io", "password": "secret"})
     assert r.status_code == 413
+
+
+def test_csp_report_sink_accepts_reports():
+    # The dedicated CSP-report route is public and bypasses the proxy/auth.
+    r = client.post("/api/csp-report", json={"csp-report": {"violated-directive": "img-src 'self'"}})
+    assert r.status_code == 204
+    # A malformed body must still not error.
+    r2 = client.post("/api/csp-report", content=b"not-json")
+    assert r2.status_code == 204

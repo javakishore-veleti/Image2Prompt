@@ -108,6 +108,12 @@ class CreateProviderReq(BaseReq):
 
 
 @dataclass(kw_only=True)
+class GetProviderReq(BaseReq):
+    db: Session
+    provider_id: str
+
+
+@dataclass(kw_only=True)
 class UpdateProviderReq(BaseReq):
     db: Session
     provider_id: str

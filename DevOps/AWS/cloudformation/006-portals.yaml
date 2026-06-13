@@ -17,6 +17,24 @@ Parameters:
   TaskMemory:
     Type: String
     Default: "512"
+  CspConnectSrc:
+    Type: String
+    Default: "'self'"
+    Description: >-
+      CSP connect-src for the portals. Keep 'self' when the API is same-origin
+      via the ALB; set to e.g. "'self' https://api.example.com" if the portals
+      and gateway live on different domains.
+  CspHeaderName:
+    Type: String
+    Default: Content-Security-Policy
+    AllowedValues:
+      - Content-Security-Policy
+      - Content-Security-Policy-Report-Only
+    Description: Use the Report-Only variant to roll out CSP without enforcing it.
+  CspReportUri:
+    Type: String
+    Default: /api/csp-report
+    Description: Where browsers POST CSP violation reports (gateway sink).
 
 Resources:
   PortalsTaskDef:
@@ -33,6 +51,10 @@ Resources:
         - Name: portals
           Image: !Sub ["${Uri}:${ImageTag}", { Uri: !ImportValue img2pmpt-EcrUri-portals }]
           PortMappings: [{ ContainerPort: 80 }]
+          Environment:
+            - { Name: CSP_CONNECT_SRC, Value: !Ref CspConnectSrc }
+            - { Name: CSP_HEADER_NAME, Value: !Ref CspHeaderName }
+            - { Name: CSP_REPORT_URI, Value: !Ref CspReportUri }
           LogConfiguration:
             LogDriver: awslogs
             Options:

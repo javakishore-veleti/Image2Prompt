@@ -15,13 +15,17 @@ import { ApiService, Provider } from '../core/api.service';
     <div class="card">
       <table>
         <thead>
-          <tr><th>Provider</th><th>Key</th><th>Category</th><th>Enabled</th><th></th></tr>
+          <tr><th>Provider</th><th>Key</th><th>Category</th><th>Credentials</th><th>Enabled</th><th></th></tr>
         </thead>
         <tbody>
           <tr *ngFor="let p of providers()">
             <td>{{ p.name }}</td>
             <td class="mono">{{ p.key }}</td>
             <td>{{ p.category }}</td>
+            <td>
+              <span class="muted" *ngIf="!configKeys(p).length">—</span>
+              <span class="cred mono" *ngFor="let k of configKeys(p)">{{ k }}: {{ p.config[k] }}</span>
+            </td>
             <td>
               <span [class.ok]="p.enabled" [class.muted]="!p.enabled">
                 {{ p.enabled ? 'Enabled' : 'Disabled' }}
@@ -35,14 +39,25 @@ import { ApiService, Provider } from '../core/api.service';
           </tr>
         </tbody>
       </table>
+      <p class="muted small">Secret values are masked (••••••••); the real keys never leave the server.</p>
     </div>
   `,
-  styles: [`.mono { font-family: monospace; font-size: 12px; }`],
+  styles: [
+    `
+      .mono { font-family: monospace; font-size: 12px; }
+      .small { font-size: 12px; margin-top: 10px; }
+      .cred { display: inline-block; margin-right: 10px; }
+    `,
+  ],
 })
 export class ProvidersComponent {
   private api = inject(ApiService);
   providers = signal<Provider[]>([]);
   busy = signal<string | null>(null);
+
+  configKeys(p: Provider): string[] {
+    return Object.keys(p.config ?? {});
+  }
 
   constructor() {
     this.load();

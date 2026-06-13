@@ -70,8 +70,10 @@ def test_provider_config_encrypted_at_rest(monkeypatch):
             headers=h,
         )
         assert r.status_code == 200
-        # response carries decrypted config
-        assert r.json()["config"] == {"api_key": "sk-super-secret"}
+        # admin response masks the secret (raw value verified via DB + internal below)
+        from app.masking import MASK
+
+        assert r.json()["config"]["api_key"] == MASK
 
         # raw DB row is ciphertext (no plaintext secret on disk)
         session = admin_db.SessionLocal()
@@ -92,6 +94,57 @@ def json_dumps(obj) -> str:
     import json
 
     return json.dumps(obj)
+
+
+def test_admin_provider_config_is_masked_internal_is_not():
+    """GET /admin/providers masks secret values; the internal endpoint returns
+    them raw (image-processing needs the real keys)."""
+    from app.masking import MASK
+
+    with TestClient(app) as client:
+        token = _login(client)
+        h = {"Authorization": f"Bearer {token}"}
+        oid = {p["key"]: p["id"] for p in client.get("/admin/providers", headers=h).json()}["cohere"]
+
+        # set a secret + a non-secret field
+        client.patch(
+            f"/admin/providers/{oid}",
+            json={"enabled": True, "config": {"api_key": "sk-raw-secret", "region": "us-east-1"}},
+            headers=h,
+        )
+
+        # admin view: secret masked, non-secret visible
+        admin_view = {p["key"]: p for p in client.get("/admin/providers", headers=h).json()}["cohere"]
+        assert admin_view["config"]["api_key"] == MASK
+        assert admin_view["config"]["region"] == "us-east-1"
+
+        # internal view: real secret
+        internal_view = {
+            p["key"]: p for p in client.get("/internal/providers", params={"enabled": "true"}).json()
+        }["cohere"]
+        assert internal_view["config"]["api_key"] == "sk-raw-secret"
+
+
+def test_update_with_masked_value_preserves_secret():
+    """Re-submitting the masked sentinel must not overwrite the stored secret."""
+    from app.masking import MASK
+
+    with TestClient(app) as client:
+        token = _login(client)
+        h = {"Authorization": f"Bearer {token}"}
+        oid = {p["key"]: p["id"] for p in client.get("/admin/providers", headers=h).json()}["mistral"]
+
+        client.patch(f"/admin/providers/{oid}", json={"config": {"api_key": "sk-keep-me"}}, headers=h)
+        # admin edits only the name, sending back the masked api_key unchanged
+        client.patch(
+            f"/admin/providers/{oid}",
+            json={"name": "Mistral X", "config": {"api_key": MASK}},
+            headers=h,
+        )
+        internal = {
+            p["key"]: p for p in client.get("/internal/providers").json()
+        }["mistral"]
+        assert internal["config"]["api_key"] == "sk-keep-me"  # preserved, not wiped to MASK
 
 
 def test_login_rejects_bad_password():

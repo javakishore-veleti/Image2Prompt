@@ -113,6 +113,24 @@ def health():
     return {"status": "ok", "service": "gateway"}
 
 
+@app.post("/api/csp-report", include_in_schema=False)
+async def csp_report(request: Request) -> Response:
+    """Sink for browser CSP violation reports (the portals' CSP report-uri).
+
+    Public, best-effort: parse-and-log only, always 204, never raises. Accepts
+    both `application/csp-report` (report-uri) and `application/reports+json`
+    (report-to) payloads.
+    """
+    try:
+        body = (await request.body()).decode("utf-8", "replace")
+        if body:
+            log.warning("csp-violation %s", body[:4000])
+            Metrics.counter_add("gateway.csp_report", 1)
+    except Exception:  # a malformed report must never error the edge
+        pass
+    return Response(status_code=204)
+
+
 def _match_route(path: str) -> Route | None:
     for route in ROUTES:
         if path == route.prefix or path.startswith(route.prefix + "/"):

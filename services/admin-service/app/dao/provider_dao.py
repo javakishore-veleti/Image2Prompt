@@ -7,6 +7,7 @@ from image2prompt_shared.observability import observe
 
 from ..dtos.internal_dtos import (
     CreateProviderReq,
+    GetProviderReq,
     ListProvidersReq,
     ProviderListResp,
     ProviderResp,
@@ -23,6 +24,13 @@ class ProviderDao(BaseDao):
             stmt = stmt.where(Provider.enabled == req.enabled)
         rows = req.db.scalars(stmt.order_by(Provider.name)).all()
         return ProviderListResp(providers=list(rows))
+
+    @observe("ProviderDao.get")
+    def get(self, req: GetProviderReq) -> ProviderResp:
+        provider = req.db.get(Provider, req.provider_id)
+        if provider is None:
+            return ProviderResp.failure(error_code="not_found", error_message="Provider not found")
+        return ProviderResp(provider=provider)
 
     @observe("ProviderDao.create")
     def create(self, req: CreateProviderReq) -> ProviderResp:

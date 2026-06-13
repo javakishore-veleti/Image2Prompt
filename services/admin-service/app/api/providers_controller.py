@@ -9,6 +9,8 @@ from ..deps import admin_writer, current_admin, get_db
 from ..di import get_providers_facade
 from ..dtos.internal_dtos import CreateProviderReq, ListProvidersReq, UpdateProviderReq
 from ..facades.interfaces import IProvidersFacade
+from ..masking import mask_config
+from ..models import Provider
 from ..schemas import ProviderCreate, ProviderOut, ProviderUpdate
 
 # Admin-facing CRUD (JWT-protected).
@@ -17,13 +19,27 @@ router = APIRouter(prefix="/admin/providers", tags=["providers"])
 internal = APIRouter(prefix="/internal/providers", tags=["providers-internal"])
 
 
+def _masked_out(provider: Provider) -> ProviderOut:
+    """Admin-facing view: secret config values are masked so raw keys never
+    reach the browser (the internal endpoint returns them unmasked)."""
+    return ProviderOut(
+        id=provider.id,
+        key=provider.key,
+        name=provider.name,
+        category=provider.category,
+        enabled=provider.enabled,
+        config=mask_config(provider.config),
+    )
+
+
 @router.get("", response_model=list[ProviderOut])
 def list_providers(
     _=Depends(current_admin),
     db: Session = Depends(get_db),
     facade: IProvidersFacade = Depends(get_providers_facade),
 ):
-    return ensure_ok(facade.list_providers(ListProvidersReq(db=db))).providers
+    resp = ensure_ok(facade.list_providers(ListProvidersReq(db=db)))
+    return [_masked_out(p) for p in resp.providers]
 
 
 @router.post("", response_model=ProviderOut, status_code=201)
@@ -33,7 +49,7 @@ def create_provider(
     db: Session = Depends(get_db),
     facade: IProvidersFacade = Depends(get_providers_facade),
 ):
-    return ensure_ok(
+    resp = ensure_ok(
         facade.create_provider(
             CreateProviderReq(
                 db=db,
@@ -44,7 +60,8 @@ def create_provider(
                 config=payload.config,
             )
         )
-    ).provider
+    )
+    return _masked_out(resp.provider)
 
 
 @router.patch("/{provider_id}", response_model=ProviderOut)
@@ -55,7 +72,7 @@ def update_provider(
     db: Session = Depends(get_db),
     facade: IProvidersFacade = Depends(get_providers_facade),
 ):
-    return ensure_ok(
+    resp = ensure_ok(
         facade.update_provider(
             UpdateProviderReq(
                 db=db,
@@ -66,7 +83,8 @@ def update_provider(
                 config=payload.config,
             )
         )
-    ).provider
+    )
+    return _masked_out(resp.provider)
 
 
 @internal.get("", response_model=list[ProviderOut])

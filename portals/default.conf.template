@@ -1,0 +1,38 @@
+# Rendered by the nginx image entrypoint (envsubst) at container start. Only
+# variables matching NGINX_ENVSUBST_FILTER (^CSP_) are substituted, so nginx's
+# own $uri/$host are left intact. Defaults are set in the Dockerfile; override
+# them in the ECS task definition when portals and the API live on different
+# domains (CSP_CONNECT_SRC) or while rolling CSP out (CSP_HEADER_NAME).
+#
+#   CSP_HEADER_NAME  Content-Security-Policy | Content-Security-Policy-Report-Only
+#   CSP_CONNECT_SRC  e.g. 'self'  ->  'self' https://api.example.com
+#   CSP_REPORT_URI   where browsers POST violation reports (gateway sink)
+server {
+    listen 80;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Security headers (mirror the gateway's API hardening for the static SPAs).
+    # CSP tuned for Angular: style 'unsafe-inline' (component styles); img
+    # data:/blob: (image previews via URL.createObjectURL); frame-ancestors
+    # 'none' + X-Frame-Options DENY (no embedding/clickjacking).
+    add_header ${CSP_HEADER_NAME} "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src ${CSP_CONNECT_SRC}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri ${CSP_REPORT_URI}" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header X-Permitted-Cross-Domain-Policies "none" always;
+
+    # Admin portal SPA at /admin/ (built with --base-href=/admin/)
+    location /admin/ {
+        alias /usr/share/nginx/html/admin/;
+        try_files $uri $uri/ /admin/index.html;
+    }
+
+    # Customer portal SPA at /
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Note: /api/* is routed by the ALB to the gateway target group, not nginx.
+}
