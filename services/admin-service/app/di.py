@@ -43,7 +43,10 @@ _maintenance_service = MaintenanceService()
 
 # Facades (wired against interfaces)
 _auth_facade: IAdminAuthFacade = AdminAuthFacade(
-    admin_user_dao=_admin_user_dao, token_service=_token_service, revoked_token_dao=_revoked_token_dao
+    admin_user_dao=_admin_user_dao,
+    token_service=_token_service,
+    revoked_token_dao=_revoked_token_dao,
+    audit_dao=_audit_dao,
 )
 _providers_facade: IProvidersFacade = ProvidersFacade(
     provider_dao=_provider_dao, audit_dao=_audit_dao
@@ -54,7 +57,9 @@ _analytics_facade: IAnalyticsFacade = AnalyticsFacade(
     analytics_service=_analytics_service,
     csp_violation_dao=_csp_violation_dao,
 )
-_admin_users_facade: IAdminUsersFacade = AdminUsersFacade(admin_user_dao=_admin_user_dao)
+_admin_users_facade: IAdminUsersFacade = AdminUsersFacade(
+    admin_user_dao=_admin_user_dao, audit_dao=_audit_dao
+)
 _csp_facade: ICspFacade = CspFacade(csp_violation_dao=_csp_violation_dao)
 _maintenance_facade: IMaintenanceFacade = MaintenanceFacade(
     revoked_token_dao=_revoked_token_dao,

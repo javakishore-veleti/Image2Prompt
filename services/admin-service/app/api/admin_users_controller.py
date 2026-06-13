@@ -28,13 +28,16 @@ def list_admins(
 @router.post("", response_model=AdminUserOut, status_code=201)
 def create_admin(
     payload: AdminUserCreate,
-    _: Principal = Depends(superadmin_only),
+    principal: Principal = Depends(superadmin_only),
     db: Session = Depends(get_db),
     facade: IAdminUsersFacade = Depends(get_admin_users_facade),
 ):
     return ensure_ok(
         facade.create_admin(
-            CreateAdminReq(db=db, email=payload.email, password=payload.password, role=payload.role)
+            CreateAdminReq(
+                db=db, email=payload.email, password=payload.password, role=payload.role,
+                actor_id=principal.id, actor_email=principal.email,
+            )
         )
     ).admin
 
@@ -50,7 +53,7 @@ def update_admin(
     return ensure_ok(
         facade.update_admin(
             UpdateAdminReq(
-                db=db, admin_id=admin_id, actor_id=principal.id,
+                db=db, admin_id=admin_id, actor_id=principal.id, actor_email=principal.email,
                 role=payload.role, password=payload.password,
             )
         )
@@ -64,4 +67,8 @@ def delete_admin(
     db: Session = Depends(get_db),
     facade: IAdminUsersFacade = Depends(get_admin_users_facade),
 ):
-    ensure_ok(facade.delete_admin(DeleteAdminReq(db=db, admin_id=admin_id, actor_id=principal.id)))
+    ensure_ok(
+        facade.delete_admin(
+            DeleteAdminReq(db=db, admin_id=admin_id, actor_id=principal.id, actor_email=principal.email)
+        )
+    )

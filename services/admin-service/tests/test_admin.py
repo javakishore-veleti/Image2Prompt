@@ -358,6 +358,31 @@ def test_audit_log_records_provider_and_maintenance_actions():
         assert client.get("/admin/audit-log").status_code == 401
 
 
+def test_audit_log_covers_auth_and_admin_user_actions():
+    with TestClient(app) as client:
+        # a failed login is audited (actor = attempted email), then a success
+        client.post("/admin/auth/login", json={"email": "admin@test.io", "password": "nope"})
+        token = _login(client)
+        h = {"Authorization": f"Bearer {token}"}
+
+        # superadmin creates + updates + deletes an admin user
+        new = client.post(
+            "/admin/users", json={"email": "auditee@image2prompt.io", "password": "pw123456", "role": "viewer"}, headers=h
+        ).json()
+        client.patch(f"/admin/users/{new['id']}", json={"role": "admin"}, headers=h)
+        client.delete(f"/admin/users/{new['id']}", headers=h)
+
+        actions = [e["action"] for e in client.get("/admin/audit-log", headers=h).json()]
+        for expected in (
+            "admin.login.failure",
+            "admin.login.success",
+            "admin_user.create",
+            "admin_user.update",
+            "admin_user.delete",
+        ):
+            assert expected in actions, expected
+
+
 def test_maintenance_prune_endpoint():
     with TestClient(app) as client:
         token = _login(client)

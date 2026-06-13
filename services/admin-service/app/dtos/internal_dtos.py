@@ -62,6 +62,8 @@ class CreateAdminReq(BaseReq):
     email: str
     password: str
     role: str = "viewer"
+    actor_id: Optional[str] = None
+    actor_email: Optional[str] = None
 
 
 @dataclass(kw_only=True)
@@ -74,6 +76,7 @@ class UpdateAdminReq(BaseReq):
     db: Session
     admin_id: str
     actor_id: str
+    actor_email: Optional[str] = None
     role: Optional[str] = None
     password: Optional[str] = None
 
@@ -83,6 +86,7 @@ class DeleteAdminReq(BaseReq):
     db: Session
     admin_id: str
     actor_id: str
+    actor_email: Optional[str] = None
 
 
 @dataclass(kw_only=True)
