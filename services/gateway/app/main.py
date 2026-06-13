@@ -19,9 +19,15 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from image2prompt_shared.logging_config import configure_logging, get_logger
+from image2prompt_shared.observability import Metrics, init_observability
 from image2prompt_shared.security import decode_token
 
 from .config import settings
+
+configure_logging(service_name=settings.service_name, level=settings.log_level, as_json=settings.log_json)
+init_observability(settings)
+log = get_logger(__name__)
 
 
 @dataclass
@@ -109,6 +115,10 @@ async def proxy(full_path: str, request: Request) -> Response:
         except httpx.HTTPError as exc:
             return JSONResponse(status_code=502, content={"detail": f"Upstream error: {exc}"})
 
+    Metrics.counter_add(
+        "gateway.proxy", 1, {"prefix": route.prefix, "status": str(upstream.status_code)}
+    )
+    log.info("proxy %s %s -> %s [%s]", request.method, path, target_url, upstream.status_code)
     resp_headers = {
         k: v for k, v in upstream.headers.items() if k.lower() not in _HOP_BY_HOP
     }
