@@ -19,6 +19,7 @@ import jwt
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from image2prompt_shared.logging_config import configure_logging, get_logger
 from image2prompt_shared.observability import Metrics, init_observability, instrument_fastapi
@@ -60,9 +61,38 @@ PUBLIC_PATHS = {
 # Headers we must not forward verbatim.
 _HOP_BY_HOP = {"host", "content-length", "connection", "keep-alive", "transfer-encoding"}
 
+_SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "X-Permitted-Cross-Domain-Policies": "none",
+}
+
+
+class SecurityMiddleware(BaseHTTPMiddleware):
+    """Caps request body size (413) and adds hardening headers to responses."""
+
+    async def dispatch(self, request: Request, call_next):
+        limit = settings.max_body_bytes
+        if limit > 0:
+            cl = request.headers.get("content-length")
+            if cl and cl.isdigit() and int(cl) > limit:
+                return JSONResponse(status_code=413, content={"detail": "Request body too large"})
+        response = await call_next(request)
+        if settings.security_headers_enabled:
+            for k, v in _SECURITY_HEADERS.items():
+                response.headers.setdefault(k, v)
+            if settings.hsts_enabled:
+                response.headers.setdefault(
+                    "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+                )
+        return response
+
+
 app = FastAPI(title="Image2Prompt Gateway")
 instrument_fastapi(app)
 app.add_middleware(RequestIdMiddleware)
+app.add_middleware(SecurityMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

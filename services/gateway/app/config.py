@@ -8,6 +8,10 @@ class GatewaySettings(ServiceSettings):
     # Fixed-window rate limit per client (subject if authenticated, else IP).
     rate_limit_enabled: bool = True
     rate_limit_rpm: int = 120
+    # Security response headers + max request body (bytes; 0 disables the cap).
+    security_headers_enabled: bool = True
+    hsts_enabled: bool = False  # enable once served over HTTPS
+    max_body_bytes: int = 15_000_000  # ~15 MB (image uploads)
 
 
 settings = GatewaySettings()

@@ -35,3 +35,18 @@ def test_request_id_is_echoed():
     r = client.get("/api/customer/me", headers={"X-Request-ID": "test-req-123"})
     # Auth fails (no token) but the correlation id is still echoed.
     assert r.headers.get("X-Request-ID") == "test-req-123"
+
+
+def test_security_headers_present():
+    r = client.get("/health")
+    assert r.headers.get("X-Content-Type-Options") == "nosniff"
+    assert r.headers.get("X-Frame-Options") == "DENY"
+    assert r.headers.get("Referrer-Policy") == "no-referrer"
+
+
+def test_body_size_limit_returns_413(monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "max_body_bytes", 5)
+    r = client.post("/api/customer/auth/login", json={"email": "a@b.io", "password": "secret"})
+    assert r.status_code == 413
