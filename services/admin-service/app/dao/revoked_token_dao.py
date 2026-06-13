@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from image2prompt_shared.dtos import BaseReq, BaseResp
@@ -43,3 +43,13 @@ class RevokedTokenDao(BaseDao):
             req.db.add(RevokedToken(jti=req.jti, expires_at=req.expires_at, reason=req.reason))
             req.db.flush()
         return BaseResp()
+
+    def prune_expired(self, db: Session, now_epoch: int) -> int:
+        """Delete revoked-token rows whose token has already expired."""
+        result = db.execute(
+            delete(RevokedToken).where(
+                RevokedToken.expires_at > 0, RevokedToken.expires_at < now_epoch
+            )
+        )
+        db.commit()
+        return result.rowcount or 0

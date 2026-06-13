@@ -37,7 +37,22 @@ async def lifespan(app: FastAPI):
     log.info("starting %s (schema=%s)", settings.service_name, settings.db_schema)
     db.bootstrap(base=Base, settings=settings, service_dir=SERVICE_DIR)
     instrument_sqlalchemy(db.engine)
+    _prune_revoked_tokens()
     yield
+
+
+def _prune_revoked_tokens() -> None:
+    import time
+
+    from .dao.revoked_token_dao import RevokedTokenDao
+
+    try:
+        with db.SessionLocal() as session:
+            removed = RevokedTokenDao().prune_expired(session, int(time.time()))
+        if removed:
+            log.info("pruned %d expired revoked tokens", removed)
+    except Exception as exc:  # never block startup on housekeeping
+        log.warning("revoked-token prune skipped: %s", exc)
 
 
 app = FastAPI(title="Image2Prompt Customer Service", lifespan=lifespan)

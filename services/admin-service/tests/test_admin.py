@@ -123,3 +123,32 @@ def test_admin_user_management():
 
         # delete the viewer
         assert client.delete(f"/admin/users/{new_id}", headers=h).status_code == 204
+
+
+def test_edit_admin_role_and_self_guard():
+    with TestClient(app) as client:
+        token = _login(client)
+        h = {"Authorization": f"Bearer {token}"}
+        # create a viewer, then promote to admin
+        new_id = client.post(
+            "/admin/users",
+            json={"email": "promote@test.io", "password": "pw12345678", "role": "viewer"},
+            headers=h,
+        ).json()["id"]
+        upd = client.patch(f"/admin/users/{new_id}", json={"role": "admin"}, headers=h)
+        assert upd.status_code == 200 and upd.json()["role"] == "admin"
+        # promoted admin can now mutate providers
+        at = client.post(
+            "/admin/auth/login", json={"email": "promote@test.io", "password": "pw12345678"}
+        ).json()["access_token"]
+        ah = {"Authorization": f"Bearer {at}"}
+        pid = {p["key"]: p["id"] for p in client.get("/admin/providers", headers=ah).json()}["mock"]
+        assert client.patch(f"/admin/providers/{pid}", json={"enabled": True}, headers=ah).status_code == 200
+        # superadmin cannot change own role
+        me = {a["email"]: a["id"] for a in client.get("/admin/users", headers=h).json()}["admin@test.io"]
+        assert client.patch(f"/admin/users/{me}", json={"role": "viewer"}, headers=h).status_code == 400
+        # password reset works
+        assert client.patch(f"/admin/users/{new_id}", json={"password": "newpw99999"}, headers=h).status_code == 200
+        assert client.post(
+            "/admin/auth/login", json={"email": "promote@test.io", "password": "newpw99999"}
+        ).status_code == 200

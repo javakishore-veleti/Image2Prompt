@@ -8,9 +8,9 @@ from image2prompt_shared.auth_dep import Principal
 
 from ..deps import get_db, superadmin_only
 from ..di import get_admin_users_facade
-from ..dtos.internal_dtos import CreateAdminReq, DeleteAdminReq, ListAdminsReq
+from ..dtos.internal_dtos import CreateAdminReq, DeleteAdminReq, ListAdminsReq, UpdateAdminReq
 from ..facades.interfaces import IAdminUsersFacade
-from ..schemas import AdminUserCreate, AdminUserOut
+from ..schemas import AdminUserCreate, AdminUserOut, AdminUserUpdate
 
 # Superadmin-only management of admin accounts + their roles.
 router = APIRouter(prefix="/admin/users", tags=["admin-users"])
@@ -35,6 +35,24 @@ def create_admin(
     return ensure_ok(
         facade.create_admin(
             CreateAdminReq(db=db, email=payload.email, password=payload.password, role=payload.role)
+        )
+    ).admin
+
+
+@router.patch("/{admin_id}", response_model=AdminUserOut)
+def update_admin(
+    admin_id: str,
+    payload: AdminUserUpdate,
+    principal: Principal = Depends(superadmin_only),
+    db: Session = Depends(get_db),
+    facade: IAdminUsersFacade = Depends(get_admin_users_facade),
+):
+    return ensure_ok(
+        facade.update_admin(
+            UpdateAdminReq(
+                db=db, admin_id=admin_id, actor_id=principal.id,
+                role=payload.role, password=payload.password,
+            )
         )
     ).admin
 

@@ -32,7 +32,13 @@ import { AuthService } from '../core/auth.service';
         <tbody>
           <tr *ngFor="let a of admins()">
             <td>{{ a.email }}</td>
-            <td>{{ a.role }}</td>
+            <td>
+              <select [ngModel]="a.role" (ngModelChange)="changeRole(a, $event)" [disabled]="a.email === auth.email()">
+                <option value="viewer">viewer</option>
+                <option value="admin">admin</option>
+                <option value="superadmin">superadmin</option>
+              </select>
+            </td>
             <td>
               <button class="ghost" (click)="remove(a)" [disabled]="a.email === auth.email()">
                 Delete
@@ -85,6 +91,10 @@ export class AdminsComponent {
         this.error.set(err?.error?.detail ?? 'Create failed');
       },
     });
+  }
+
+  changeRole(a: any, role: string): void {
+    this.api.updateAdmin(a.id, { role }).subscribe({ next: () => this.load(), error: () => this.load() });
   }
 
   remove(a: any): void {

@@ -70,6 +70,15 @@ class ListAdminsReq(BaseReq):
 
 
 @dataclass(kw_only=True)
+class UpdateAdminReq(BaseReq):
+    db: Session
+    admin_id: str
+    actor_id: str
+    role: Optional[str] = None
+    password: Optional[str] = None
+
+
+@dataclass(kw_only=True)
 class DeleteAdminReq(BaseReq):
     db: Session
     admin_id: str

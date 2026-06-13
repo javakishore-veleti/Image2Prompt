@@ -13,6 +13,7 @@ from ..dtos.internal_dtos import (
     DeleteAdminReq,
     GetAdminByEmailReq,
     ListAdminsReq,
+    UpdateAdminReq,
 )
 from ..models import AdminUser
 
@@ -38,6 +39,18 @@ class AdminUserDao(BaseDao):
     def list(self, req: ListAdminsReq) -> AdminUserListResp:
         rows = req.db.scalars(select(AdminUser).order_by(AdminUser.created_at.desc())).all()
         return AdminUserListResp(admins=list(rows))
+
+    @observe("AdminUserDao.update")
+    def update(self, req: UpdateAdminReq) -> AdminUserResp:
+        admin = req.db.get(AdminUser, req.admin_id)
+        if admin is None:
+            return AdminUserResp.failure(error_code="not_found", error_message="Admin not found")
+        if req.role is not None:
+            admin.role = req.role
+        if req.password:
+            admin.password_hash = hash_password(req.password)
+        req.db.flush()
+        return AdminUserResp(admin=admin)
 
     @observe("AdminUserDao.delete")
     def delete(self, req: DeleteAdminReq) -> AdminUserResp:

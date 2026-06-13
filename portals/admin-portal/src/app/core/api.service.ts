@@ -51,6 +51,9 @@ export class ApiService {
   createAdmin(body: { email: string; password: string; role: string }): Observable<any> {
     return this.http.post(`${this.admin}/users`, body);
   }
+  updateAdmin(id: string, body: { role?: string; password?: string }): Observable<any> {
+    return this.http.patch(`${this.admin}/users/${id}`, body);
+  }
   deleteAdmin(id: string): Observable<void> {
     return this.http.delete<void>(`${this.admin}/users/${id}`);
   }

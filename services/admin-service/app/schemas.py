@@ -62,6 +62,11 @@ class AdminUserCreate(BaseModel):
     role: str = "viewer"
 
 
+class AdminUserUpdate(BaseModel):
+    role: str | None = None
+    password: str | None = None
+
+
 class AdminUserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str

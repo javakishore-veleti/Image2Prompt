@@ -10,6 +10,7 @@ from ..dtos.internal_dtos import (
     CreateAdminReq,
     DeleteAdminReq,
     ListAdminsReq,
+    UpdateAdminReq,
 )
 from .interfaces import IAdminUsersFacade
 
@@ -35,6 +36,21 @@ class AdminUsersFacade(BaseFacade, IAdminUsersFacade):
     @observe("AdminUsersFacade.list_admins")
     def list_admins(self, req: ListAdminsReq) -> AdminUserListResp:
         return self.admin_user_dao.list(req)
+
+    @observe("AdminUsersFacade.update_admin")
+    def update_admin(self, req: UpdateAdminReq) -> AdminUserResp:
+        if req.role is not None and req.role not in _VALID_ROLES:
+            return AdminUserResp.failure(
+                error_code="bad_request", error_message=f"role must be one of {sorted(_VALID_ROLES)}"
+            )
+        if req.role is not None and req.admin_id == req.actor_id:
+            return AdminUserResp.failure(
+                error_code="bad_request", error_message="You cannot change your own role"
+            )
+        resp = self.admin_user_dao.update(req)
+        if resp.success:
+            req.db.commit()
+        return resp
 
     @observe("AdminUsersFacade.delete_admin")
     def delete_admin(self, req: DeleteAdminReq) -> AdminUserResp:

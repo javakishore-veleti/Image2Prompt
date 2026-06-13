@@ -26,6 +26,9 @@ class IAdminUsersFacade(ABC):
     def list_admins(self, req: "dto.ListAdminsReq") -> "dto.AdminUserListResp": ...
 
     @abstractmethod
+    def update_admin(self, req: "dto.UpdateAdminReq") -> "dto.AdminUserResp": ...
+
+    @abstractmethod
     def delete_admin(self, req: "dto.DeleteAdminReq") -> "dto.AdminUserResp": ...
 
 
