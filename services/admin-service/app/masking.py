@@ -34,13 +34,20 @@ def mask_config(config: dict | None) -> dict:
 
 
 def merge_with_existing(incoming: dict | None, existing: dict | None) -> dict:
-    """Build the config to persist: any incoming value equal to MASK is a
-    placeholder for an unchanged secret and is replaced by the existing value."""
-    existing = existing or {}
-    merged: dict = {}
+    """Patch-merge the incoming config into the existing one so a partial update
+    (e.g. setting one credential) doesn't drop the other keys:
+
+    - a value equal to MASK means "unchanged" -> keep the stored value
+    - a value of ``None`` means "remove this key"
+    - any other value overwrites/adds the key
+    - keys not mentioned in ``incoming`` are preserved
+    """
+    result: dict = dict(existing or {})
     for k, v in (incoming or {}).items():
-        if v == MASK and k in existing:
-            merged[k] = existing[k]
+        if v is None:
+            result.pop(k, None)
+        elif v == MASK:
+            continue  # unchanged secret
         else:
-            merged[k] = v
-    return merged
+            result[k] = v
+    return result

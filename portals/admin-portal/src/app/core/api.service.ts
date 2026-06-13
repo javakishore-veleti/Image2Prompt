@@ -19,6 +19,23 @@ export interface Provider {
   config: Record<string, unknown>;
 }
 
+export interface CspViolation {
+  id: string;
+  created_at: string;
+  document_uri: string | null;
+  violated_directive: string | null;
+  blocked_uri: string | null;
+  source_file: string | null;
+  line_number: number | null;
+  disposition: string | null;
+}
+
+export interface CspDashboard {
+  total: number;
+  summary: { directive: string; count: number }[];
+  violations: CspViolation[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   private admin = `${environment.gatewayUrl}/api/admin`;
@@ -60,5 +77,10 @@ export class ApiService {
 
   updateProvider(id: string, body: Partial<Provider>): Observable<Provider> {
     return this.http.patch<Provider>(`${this.admin}/providers/${id}`, body);
+  }
+
+  cspViolations(limit = 100): Observable<CspDashboard> {
+    let params = new HttpParams().set('limit', String(limit));
+    return this.http.get<CspDashboard>(`${this.admin}/csp-violations`, { params });
   }
 }

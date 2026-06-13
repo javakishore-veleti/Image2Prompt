@@ -34,3 +34,19 @@ class RevokedToken(Base, UUIDPkMixin, TimestampMixin):
     jti: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     expires_at: Mapped[int] = mapped_column(BigInteger, default=0)
     reason: Mapped[str] = mapped_column(String(50), default="revoked")
+
+
+class CspViolation(Base, UUIDPkMixin, TimestampMixin):
+    """A Content-Security-Policy violation report forwarded by the gateway.
+    Normalized from both report-uri and Reporting-API payloads."""
+
+    __tablename__ = "csp_violations"
+
+    document_uri: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    violated_directive: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    blocked_uri: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    source_file: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    line_number: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    disposition: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    raw: Mapped[dict] = mapped_column(JSON, default=dict)

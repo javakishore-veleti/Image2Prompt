@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from image2prompt_shared.dtos import BaseReq, BaseResp
 
-from ..models import AdminUser, Provider
+from ..models import AdminUser, CspViolation, Provider
 
 
 # --- auth ---
@@ -154,6 +154,38 @@ class GetCustomerConnectionsReq(BaseReq):
 @dataclass(kw_only=True)
 class CustomerConnectionsResp(BaseResp):
     connections: list = field(default_factory=list)
+
+
+# --- csp violations ---
+@dataclass(kw_only=True)
+class IngestViolationReq(BaseReq):
+    db: Session
+    document_uri: Optional[str] = None
+    violated_directive: Optional[str] = None
+    blocked_uri: Optional[str] = None
+    source_file: Optional[str] = None
+    line_number: Optional[int] = None
+    disposition: Optional[str] = None
+    user_agent: Optional[str] = None
+    raw: dict = field(default_factory=dict)
+
+
+@dataclass(kw_only=True)
+class ListViolationsReq(BaseReq):
+    db: Session
+    limit: int = 100
+
+
+@dataclass(kw_only=True)
+class CspViolationResp(BaseResp):
+    violation: Optional[CspViolation] = None
+
+
+@dataclass(kw_only=True)
+class CspViolationListResp(BaseResp):
+    violations: list[CspViolation] = field(default_factory=list)
+    summary: list[dict] = field(default_factory=list)  # [{directive, count}]
+    total: int = 0
 
 
 # --- analytics ---

@@ -113,19 +113,68 @@ def health():
     return {"status": "ok", "service": "gateway"}
 
 
+def _normalize_csp_reports(payload, user_agent: str) -> list[dict]:
+    """Normalize both legacy report-uri (`{"csp-report": {...}}`) and modern
+    Reporting-API (`[{"type":"csp-violation","body":{...}}]`) payloads into the
+    flat shape admin-service ingests."""
+    reports: list[dict] = []
+    if isinstance(payload, dict) and isinstance(payload.get("csp-report"), dict):
+        r = payload["csp-report"]
+        reports.append({
+            "document_uri": r.get("document-uri"),
+            "violated_directive": r.get("violated-directive") or r.get("effective-directive"),
+            "blocked_uri": r.get("blocked-uri"),
+            "source_file": r.get("source-file"),
+            "line_number": r.get("line-number"),
+            "disposition": r.get("disposition"),
+            "user_agent": user_agent,
+            "raw": r,
+        })
+    elif isinstance(payload, list):
+        for item in payload[:20]:  # cap per request
+            if not isinstance(item, dict):
+                continue
+            if item.get("type") and item.get("type") != "csp-violation":
+                continue
+            b = item.get("body") or {}
+            reports.append({
+                "document_uri": b.get("documentURL") or b.get("document-uri"),
+                "violated_directive": b.get("effectiveDirective") or b.get("violatedDirective"),
+                "blocked_uri": b.get("blockedURL") or b.get("blocked-uri"),
+                "source_file": b.get("sourceFile"),
+                "line_number": b.get("lineNumber"),
+                "disposition": b.get("disposition"),
+                "user_agent": item.get("user_agent") or user_agent,
+                "raw": item,
+            })
+    return reports
+
+
 @app.post("/api/csp-report", include_in_schema=False)
 async def csp_report(request: Request) -> Response:
-    """Sink for browser CSP violation reports (the portals' CSP report-uri).
+    """Sink for browser CSP violation reports (the portals' report-uri / report-to).
 
-    Public, best-effort: parse-and-log only, always 204, never raises. Accepts
-    both `application/csp-report` (report-uri) and `application/reports+json`
-    (report-to) payloads.
+    Public, best-effort: parse, log, forward to admin-service for the dashboard,
+    always 204, never raises. Accepts both `application/csp-report` and the
+    Reporting-API `application/reports+json` payloads.
     """
     try:
-        body = (await request.body()).decode("utf-8", "replace")
-        if body:
-            log.warning("csp-violation %s", body[:4000])
-            Metrics.counter_add("gateway.csp_report", 1)
+        import json
+
+        raw = (await request.body()).decode("utf-8", "replace")
+        if not raw:
+            return Response(status_code=204)
+        log.warning("csp-violation %s", raw[:4000])
+        Metrics.counter_add("gateway.csp_report", 1)
+        reports = _normalize_csp_reports(json.loads(raw), request.headers.get("user-agent", ""))
+        if reports:
+            url = f"{settings.admin_service_url}/internal/csp-violations"
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                for rpt in reports:
+                    try:
+                        await client.post(url, json=rpt)
+                    except httpx.HTTPError:
+                        pass  # dashboard ingest is best-effort
     except Exception:  # a malformed report must never error the edge
         pass
     return Response(status_code=204)

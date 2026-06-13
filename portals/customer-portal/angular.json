@@ -46,7 +46,9 @@
           "builder": "@angular-devkit/build-angular:dev-server",
           "options": {
             "headers": {
-              "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' http://localhost:8000 ws://localhost:4200; object-src 'none'; base-uri 'self'; report-uri http://localhost:8000/api/csp-report",
+              "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' http://localhost:8000 ws://localhost:4200; object-src 'none'; base-uri 'self'; report-uri http://localhost:8000/api/csp-report; report-to csp-endpoint",
+              "Reporting-Endpoints": "csp-endpoint=\"http://localhost:8000/api/csp-report\"",
+              "Report-To": "{\"group\":\"csp-endpoint\",\"max_age\":10886400,\"endpoints\":[{\"url\":\"http://localhost:8000/api/csp-report\"}]}",
               "X-Content-Type-Options": "nosniff",
               "Referrer-Policy": "no-referrer"
             }

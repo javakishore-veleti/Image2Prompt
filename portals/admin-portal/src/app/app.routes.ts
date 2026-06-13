@@ -15,6 +15,7 @@ export const routes: Routes = [
       { path: 'customers', loadComponent: () => import('./pages/customer-listing.component').then((m) => m.CustomerListingComponent) },
       { path: 'customers/endpoints', loadComponent: () => import('./pages/customer-endpoints.component').then((m) => m.CustomerEndpointsComponent) },
       { path: 'providers', loadComponent: () => import('./pages/providers.component').then((m) => m.ProvidersComponent) },
+      { path: 'security', loadComponent: () => import('./pages/security.component').then((m) => m.SecurityComponent) },
       { path: 'admins', loadComponent: () => import('./pages/admins.component').then((m) => m.AdminsComponent) },
     ],
   },

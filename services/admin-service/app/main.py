@@ -18,6 +18,7 @@ from .api import (
     admin_users_controller,
     analytics_controller,
     auth_controller,
+    csp_controller,
     customers_controller,
     providers_controller,
 )
@@ -73,6 +74,8 @@ app.include_router(providers_controller.internal)
 app.include_router(customers_controller.router)
 app.include_router(analytics_controller.router)
 app.include_router(admin_users_controller.router)
+app.include_router(csp_controller.router)
+app.include_router(csp_controller.internal)
 
 
 @app.get("/health", tags=["health"])

@@ -43,6 +43,14 @@ class IProvidersFacade(ABC):
     def update_provider(self, req: "dto.UpdateProviderReq") -> "dto.ProviderResp": ...
 
 
+class ICspFacade(ABC):
+    @abstractmethod
+    def ingest(self, req: "dto.IngestViolationReq") -> "dto.CspViolationResp": ...
+
+    @abstractmethod
+    def list_violations(self, req: "dto.ListViolationsReq") -> "dto.CspViolationListResp": ...
+
+
 class IAnalyticsFacade(ABC):
     @abstractmethod
     async def get_analytics(self, req: "dto.GetAnalyticsReq") -> "dto.AnalyticsResp": ...

@@ -72,3 +72,39 @@ class AdminUserOut(BaseModel):
     id: str
     email: str
     role: str
+
+
+class CspViolationIn(BaseModel):
+    """Normalized violation ingested from the gateway (already parsed)."""
+
+    document_uri: str | None = None
+    violated_directive: str | None = None
+    blocked_uri: str | None = None
+    source_file: str | None = None
+    line_number: int | None = None
+    disposition: str | None = None
+    user_agent: str | None = None
+    raw: dict[str, Any] = {}
+
+
+class CspViolationOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    created_at: Any
+    document_uri: str | None = None
+    violated_directive: str | None = None
+    blocked_uri: str | None = None
+    source_file: str | None = None
+    line_number: int | None = None
+    disposition: str | None = None
+
+
+class CspSummaryItem(BaseModel):
+    directive: str
+    count: int
+
+
+class CspDashboard(BaseModel):
+    total: int
+    summary: list[CspSummaryItem] = []
+    violations: list[CspViolationOut] = []

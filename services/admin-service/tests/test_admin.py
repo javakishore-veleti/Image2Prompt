@@ -147,6 +147,54 @@ def test_update_with_masked_value_preserves_secret():
         assert internal["config"]["api_key"] == "sk-keep-me"  # preserved, not wiped to MASK
 
 
+def test_update_config_is_patch_merge():
+    """A partial config update preserves unlisted keys; null deletes a key."""
+    with TestClient(app) as client:
+        token = _login(client)
+        h = {"Authorization": f"Bearer {token}"}
+        oid = {p["key"]: p["id"] for p in client.get("/admin/providers", headers=h).json()}["ollama"]
+
+        client.patch(f"/admin/providers/{oid}", json={"config": {"host": "localhost", "api_key": "k1"}}, headers=h)
+        # set only api_key -> host preserved
+        client.patch(f"/admin/providers/{oid}", json={"config": {"api_key": "k2"}}, headers=h)
+        cfg = {p["key"]: p for p in client.get("/internal/providers").json()}["ollama"]["config"]
+        assert cfg["host"] == "localhost" and cfg["api_key"] == "k2"
+
+        # null removes a key
+        client.patch(f"/admin/providers/{oid}", json={"config": {"host": None}}, headers=h)
+        cfg2 = {p["key"]: p for p in client.get("/internal/providers").json()}["ollama"]["config"]
+        assert "host" not in cfg2 and cfg2["api_key"] == "k2"
+
+
+def test_csp_violation_ingest_and_dashboard():
+    with TestClient(app) as client:
+        token = _login(client)
+        h = {"Authorization": f"Bearer {token}"}
+
+        # gateway-style internal ingest (no auth)
+        for directive in ("img-src 'self'", "img-src 'self'", "script-src 'self'"):
+            r = client.post(
+                "/internal/csp-violations",
+                json={
+                    "document_uri": "https://app.example.com/",
+                    "violated_directive": directive,
+                    "blocked_uri": "https://evil.example.com/x.png",
+                    "raw": {"k": "v"},
+                },
+            )
+            assert r.status_code == 202
+
+        # admin dashboard: list + summary
+        dash = client.get("/admin/csp-violations", headers=h).json()
+        assert dash["total"] == 3
+        assert len(dash["violations"]) == 3
+        counts = {s["directive"]: s["count"] for s in dash["summary"]}
+        assert counts["img-src 'self'"] == 2 and counts["script-src 'self'"] == 1
+
+        # dashboard requires auth
+        assert client.get("/admin/csp-violations").status_code == 401
+
+
 def test_login_rejects_bad_password():
     with TestClient(app) as client:
         r = client.post(

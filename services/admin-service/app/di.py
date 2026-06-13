@@ -3,16 +3,19 @@
 from __future__ import annotations
 
 from .dao.admin_user_dao import AdminUserDao
+from .dao.csp_violation_dao import CspViolationDao
 from .dao.provider_dao import ProviderDao
 from .dao.revoked_token_dao import RevokedTokenDao
 from .facades.admin_users_facade import AdminUsersFacade
 from .facades.analytics_facade import AnalyticsFacade
 from .facades.auth_facade import AdminAuthFacade
+from .facades.csp_facade import CspFacade
 from .facades.customers_facade import CustomersFacade
 from .facades.interfaces import (
     IAdminAuthFacade,
     IAdminUsersFacade,
     IAnalyticsFacade,
+    ICspFacade,
     ICustomersFacade,
     IProvidersFacade,
 )
@@ -25,6 +28,7 @@ from .services.token_service import AdminTokenService
 _admin_user_dao = AdminUserDao()
 _provider_dao = ProviderDao()
 _revoked_token_dao = RevokedTokenDao()
+_csp_violation_dao = CspViolationDao()
 
 # Services
 _token_service = AdminTokenService()
@@ -41,10 +45,15 @@ _analytics_facade: IAnalyticsFacade = AnalyticsFacade(
     provider_dao=_provider_dao, analytics_service=_analytics_service
 )
 _admin_users_facade: IAdminUsersFacade = AdminUsersFacade(admin_user_dao=_admin_user_dao)
+_csp_facade: ICspFacade = CspFacade(csp_violation_dao=_csp_violation_dao)
 
 
 def get_auth_facade() -> IAdminAuthFacade:
     return _auth_facade
+
+
+def get_csp_facade() -> ICspFacade:
+    return _csp_facade
 
 
 def get_providers_facade() -> IProvidersFacade:
