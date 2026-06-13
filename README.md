@@ -75,21 +75,46 @@ metrics (`@observe`, `Metrics`, span attributes), all **feature-toggled** and
 **fail-safe** — if disabled, the SDK is missing, or the collector is down,
 everything degrades to a no-op and the app keeps running.
 
+## Configuration & secrets
+
+One config contract (env var names in `ServiceSettings`), two sources depending
+on environment — services never change:
+
+- **Local:** a single **repo-root `.env`** (`.env.example` to copy). The
+  `DevOps/Local` scripts source it and export it to every service.
+- **Cloud (AWS/Azure/GCP):** don't ship `.env`. Set `CAF_SECRET_PROVIDER` to
+  `aws` / `azure` / `gcp` and the values are read from the secret store via the
+  **`img2pmpt-caf-secret`** library (`libs/img2pmpt-caf-secret`).
+
+`img2pmpt-caf-secret` (CAF = Common Application Framework) exposes a single
+`ISecretClient` (`get_secret_by_key` / `get_secrets_by_keys`); the underlying
+provider (`EnvFileProvider`, AWS Secrets Manager, Azure Key Vault, GCP Secret
+Manager) is chosen by feature toggle (`CAF_SECRET_PROVIDER` + per-provider
+`CAF_SECRET_*_ENABLED`). Cloud SDKs are imported lazily; a disabled toggle,
+missing SDK, or lookup error degrades gracefully (returns a failed result with
+any default, never raises). The shared settings layer plugs this in as a pydantic
+source, so a field resolves from the local `.env` or a cloud secret with **zero
+per-service code changes** (priority: explicit env > `.env` > CAF secret store).
+
+For AWS, the secret named by `CAF_SECRET_AWS_SECRET_NAME` is a JSON object whose
+keys are the uppercase env names (`JWT_SECRET`, `DATABASE_URL`, …); Azure/GCP use
+one secret per key.
+
 ## Quick start (local dev)
 
 Everything is orchestrated from the repo root via `npm run local:*` scripts
 (thin wrappers over `DevOps/Local/*.sh`).
 
 ```bash
-cp DevOps/Local/.env.example DevOps/Local/.env     # tweak secrets / OTEL / AWS
+cp .env.example .env                               # repo-root .env: single source of truth
 
 # 1) Postgres — starts our container ONLY if nothing is already on :5432
 #    (an existing Postgres on the laptop is reused; services just create schemas).
 npm run local:containers:start-all
 
-# 2) Python venv (one-time): install shared lib + service deps
+# 2) Python venv (one-time): install shared lib + CAF secrets lib + service deps
 python -m venv .venv && . .venv/bin/activate
-pip install ./services/shared boto3 email-validator
+pip install ./services/shared ./libs/img2pmpt-caf-secret boto3 email-validator
 # (gateway/customer/admin/ai-adapters/image all import the shared lib)
 
 # 3) Bring up services + portals together (portals need `npm install` first)
@@ -140,12 +165,16 @@ services/
   ai-adapters/               api/facade/service + provider controllers (req/resp)
   image-processing-service/  api/facade(orchestrator)/services/dao; img2pmpt_image schema
   <each service>/alembic/    Alembic env + initial migration
+libs/
+  img2pmpt-caf-secret/       CAF secrets lib: client (ISecretClient) + provider_impls
+                             (env / AWS / Azure / GCP), feature-toggled
 portals/
   customer-portal/           Angular — Dashboard, Connections (disabled), Projects,
                              Prompts, Payment Settings, Billing
   admin-portal/              Angular — Dashboard, Customer Search/Listing/Endpoints,
                              Providers
 DevOps/Local/                postgres docker-compose + start/stop/status scripts
+.env.example                 root: single local config source of truth
 package.json                 root: local:* orchestration scripts (no app code)
 ```
 
