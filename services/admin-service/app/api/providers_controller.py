@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from image2prompt_shared.api_errors import ensure_ok
 
-from ..deps import current_admin, get_db
+from ..deps import admin_writer, current_admin, get_db
 from ..di import get_providers_facade
 from ..dtos.internal_dtos import CreateProviderReq, ListProvidersReq, UpdateProviderReq
 from ..facades.interfaces import IProvidersFacade
@@ -29,7 +29,7 @@ def list_providers(
 @router.post("", response_model=ProviderOut, status_code=201)
 def create_provider(
     payload: ProviderCreate,
-    _=Depends(current_admin),
+    _=Depends(admin_writer),
     db: Session = Depends(get_db),
     facade: IProvidersFacade = Depends(get_providers_facade),
 ):
@@ -51,7 +51,7 @@ def create_provider(
 def update_provider(
     provider_id: str,
     payload: ProviderUpdate,
-    _=Depends(current_admin),
+    _=Depends(admin_writer),
     db: Session = Depends(get_db),
     facade: IProvidersFacade = Depends(get_providers_facade),
 ):

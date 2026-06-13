@@ -64,3 +64,20 @@ def make_principal_dep(settings, *, required_type: str | None = None):
         return principal
 
     return _dep
+
+
+def make_role_dep(settings, *, required_type: str, roles: set[str]):
+    """Like make_principal_dep, but also requires the principal's ``role`` claim
+    to be one of ``roles`` (403 otherwise). For RBAC on specific endpoints."""
+
+    base = make_principal_dep(settings, required_type=required_type)
+
+    def _dep(principal: Principal = Depends(base)) -> Principal:
+        if principal.claims.get("role") not in roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Requires one of roles: {sorted(roles)}",
+            )
+        return principal
+
+    return _dep

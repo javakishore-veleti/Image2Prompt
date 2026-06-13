@@ -42,7 +42,7 @@ def _seed_admin(session: Session) -> None:
             AdminUser(
                 email=settings.admin_email,
                 password_hash=hash_password(settings.admin_password),
-                role="admin",
+                role="superadmin",
             )
         )
 

@@ -72,3 +72,21 @@ def test_admin_logout_revokes_refresh():
         ).json()
         assert client.post("/admin/auth/logout", json={"refresh_token": login["refresh_token"]}).status_code == 204
         assert client.post("/admin/auth/refresh", json={"refresh_token": login["refresh_token"]}).status_code == 401
+
+
+def test_viewer_role_is_read_only():
+    from image2prompt_shared.security import create_access_token
+    from app.config import settings as cfg
+
+    viewer = create_access_token(
+        subject="viewer-1", token_type="admin", email="viewer@test.io",
+        secret=cfg.jwt_secret, algorithm=cfg.jwt_algorithm, extra={"role": "viewer"},
+    )
+    h = {"Authorization": f"Bearer {viewer}"}
+    with TestClient(app) as client:
+        # viewer can read providers
+        providers = client.get("/admin/providers", headers=h)
+        assert providers.status_code == 200
+        pid = {p["key"]: p["id"] for p in providers.json()}["mock"]
+        # but cannot mutate them
+        assert client.patch(f"/admin/providers/{pid}", json={"enabled": True}, headers=h).status_code == 403
