@@ -1,0 +1,54 @@
+name: AWS_003_Setup_Database
+
+# Creates RDS PostgreSQL, then patches the app secret with DATABASE_URL built
+# from the new endpoint (so the CAF aws provider serves it to every service).
+on:
+  workflow_dispatch:
+    inputs:
+      aws_region:
+        description: AWS region
+        default: us-east-1
+      db_username:
+        description: DB master username
+        default: image2prompt
+      db_password:
+        description: DB master password (min 8 chars)
+        default: image2prompt
+      db_instance_class:
+        description: RDS instance class
+        default: db.t3.micro
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ inputs.aws_region }}
+      - name: Deploy database stack
+        run: |
+          aws cloudformation deploy \
+            --stack-name img2pmpt-database \
+            --template-file DevOps/AWS/cloudformation/003-database.yaml \
+            --parameter-overrides \
+              DbUsername="${{ inputs.db_username }}" \
+              DbPassword="${{ inputs.db_password }}" \
+              DbInstanceClass="${{ inputs.db_instance_class }}" \
+            --no-fail-on-empty-changeset
+      - name: Patch app secret with DATABASE_URL
+        env:
+          DB_USER: ${{ inputs.db_username }}
+          DB_PASS: ${{ inputs.db_password }}
+        run: |
+          set -e
+          out() { aws cloudformation describe-stacks --stack-name img2pmpt-database \
+            --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text; }
+          ENDPOINT=$(out DbEndpoint); PORT=$(out DbPort); DBNAME=$(out DbName)
+          URL="postgresql+psycopg://${DB_USER}:${DB_PASS}@${ENDPOINT}:${PORT}/${DBNAME}"
+          CUR=$(aws secretsmanager get-secret-value --secret-id img2pmpt/app --query SecretString --output text)
+          NEW=$(echo "$CUR" | jq --arg u "$URL" '. + {DATABASE_URL: $u}')
+          aws secretsmanager put-secret-value --secret-id img2pmpt/app --secret-string "$NEW"
+          echo "DATABASE_URL patched into img2pmpt/app"

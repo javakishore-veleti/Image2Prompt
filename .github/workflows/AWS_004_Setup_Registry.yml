@@ -1,0 +1,25 @@
+name: AWS_004_Setup_Registry
+
+on:
+  workflow_dispatch:
+    inputs:
+      aws_region:
+        description: AWS region
+        default: us-east-1
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ inputs.aws_region }}
+      - name: Deploy ECR registry stack
+        run: |
+          aws cloudformation deploy \
+            --stack-name img2pmpt-registry \
+            --template-file DevOps/AWS/cloudformation/004-registry.yaml \
+            --no-fail-on-empty-changeset

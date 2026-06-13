@@ -1,0 +1,22 @@
+name: AWS_003_Destroy_Database
+
+on:
+  workflow_dispatch:
+    inputs:
+      aws_region:
+        description: AWS region
+        default: us-east-1
+
+jobs:
+  destroy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ inputs.aws_region }}
+      - name: Delete database stack
+        run: |
+          aws cloudformation delete-stack --stack-name img2pmpt-database
+          aws cloudformation wait stack-delete-complete --stack-name img2pmpt-database

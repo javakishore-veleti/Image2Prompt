@@ -1,0 +1,52 @@
+name: AWS_005_Setup_Compute
+
+# Builds + pushes the 5 service images to ECR, then deploys the ECS/ALB stack.
+on:
+  workflow_dispatch:
+    inputs:
+      aws_region:
+        description: AWS region
+        default: us-east-1
+      image_tag:
+        description: Image tag to build and deploy
+        default: latest
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ inputs.aws_region }}
+      - uses: aws-actions/amazon-ecr-login@v2
+      - name: Build & push service images
+        env:
+          TAG: ${{ inputs.image_tag }}
+          REGION: ${{ inputs.aws_region }}
+        run: |
+          set -e
+          ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+          REG="${ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com"
+          for entry in \
+            "gateway:services/gateway/Dockerfile" \
+            "customer-service:services/customer-service/Dockerfile" \
+            "admin-service:services/admin-service/Dockerfile" \
+            "ai-adapters:services/ai-adapters/Dockerfile" \
+            "image-processing-service:services/image-processing-service/Dockerfile"; do
+            name="${entry%%:*}"; dockerfile="${entry##*:}"
+            echo "::group::build $name"
+            docker build -f "$dockerfile" -t "$REG/img2pmpt/$name:$TAG" .
+            docker push "$REG/img2pmpt/$name:$TAG"
+            echo "::endgroup::"
+          done
+      - name: Deploy compute stack
+        run: |
+          aws cloudformation deploy \
+            --stack-name img2pmpt-compute \
+            --template-file DevOps/AWS/cloudformation/005-compute.yaml \
+            --parameter-overrides ImageTag="${{ inputs.image_tag }}" \
+            --capabilities CAPABILITY_IAM \
+            --no-fail-on-empty-changeset

@@ -1,0 +1,28 @@
+name: AWS_1001_All_Destroy_Image2Prompt
+
+# One-stop manual teardown of the entire stack in REVERSE dependency order.
+# Missing stacks are skipped (|| true) so partial deployments still tear down.
+on:
+  workflow_dispatch:
+    inputs:
+      aws_region:
+        description: AWS region
+        default: us-east-1
+
+jobs:
+  all-destroy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ inputs.aws_region }}
+      - name: Delete all stacks (reverse order)
+        run: |
+          for s in img2pmpt-portals img2pmpt-compute img2pmpt-registry img2pmpt-database img2pmpt-secrets img2pmpt-network; do
+            echo "::group::delete $s"
+            aws cloudformation delete-stack --stack-name "$s" || true
+            aws cloudformation wait stack-delete-complete --stack-name "$s" || true
+            echo "::endgroup::"
+          done

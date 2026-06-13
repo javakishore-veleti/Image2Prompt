@@ -1,0 +1,126 @@
+name: AWS_1000_All_Setup_Image2Prompt
+
+# One-stop manual deploy of the entire stack in dependency order:
+# network -> secrets -> database(+patch) -> registry -> build/push -> compute
+# -> build/push portals -> portals.
+on:
+  workflow_dispatch:
+    inputs:
+      aws_region:
+        description: AWS region
+        default: us-east-1
+      existing_vpc_id:
+        description: "Existing VPC ID (EMPTY = create new)"
+        default: ""
+      public_subnet_ids:
+        description: "When reusing: 2 public subnet IDs, comma-separated"
+        default: ""
+      private_subnet_ids:
+        description: "When reusing: 2 private subnet IDs, comma-separated"
+        default: ""
+      admin_email:
+        description: Seed admin email
+        default: admin@image2prompt.io
+      admin_password:
+        description: Seed admin password
+        default: admin12345
+      db_username:
+        description: DB master username
+        default: image2prompt
+      db_password:
+        description: DB master password (min 8 chars)
+        default: image2prompt
+      image_tag:
+        description: Image tag to build and deploy
+        default: latest
+
+jobs:
+  all-setup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ inputs.aws_region }}
+      - uses: aws-actions/amazon-ecr-login@v2
+
+      - name: 001 Network
+        run: |
+          aws cloudformation deploy --stack-name img2pmpt-network \
+            --template-file DevOps/AWS/cloudformation/001-network.yaml \
+            --parameter-overrides \
+              ExistingVpcId="${{ inputs.existing_vpc_id }}" \
+              ExistingPublicSubnetIds="${{ inputs.public_subnet_ids }}" \
+              ExistingPrivateSubnetIds="${{ inputs.private_subnet_ids }}" \
+            --no-fail-on-empty-changeset
+
+      - name: 002 Secrets
+        run: |
+          aws cloudformation deploy --stack-name img2pmpt-secrets \
+            --template-file DevOps/AWS/cloudformation/002-secrets.yaml \
+            --parameter-overrides AdminEmail="${{ inputs.admin_email }}" AdminPassword="${{ inputs.admin_password }}" \
+            --no-fail-on-empty-changeset
+
+      - name: 003 Database (+ patch DATABASE_URL)
+        env:
+          DB_USER: ${{ inputs.db_username }}
+          DB_PASS: ${{ inputs.db_password }}
+        run: |
+          set -e
+          aws cloudformation deploy --stack-name img2pmpt-database \
+            --template-file DevOps/AWS/cloudformation/003-database.yaml \
+            --parameter-overrides DbUsername="$DB_USER" DbPassword="$DB_PASS" \
+            --no-fail-on-empty-changeset
+          out() { aws cloudformation describe-stacks --stack-name img2pmpt-database \
+            --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text; }
+          URL="postgresql+psycopg://${DB_USER}:${DB_PASS}@$(out DbEndpoint):$(out DbPort)/$(out DbName)"
+          CUR=$(aws secretsmanager get-secret-value --secret-id img2pmpt/app --query SecretString --output text)
+          echo "$CUR" | jq --arg u "$URL" '. + {DATABASE_URL: $u}' > /tmp/secret.json
+          aws secretsmanager put-secret-value --secret-id img2pmpt/app --secret-string file:///tmp/secret.json
+
+      - name: 004 Registry
+        run: |
+          aws cloudformation deploy --stack-name img2pmpt-registry \
+            --template-file DevOps/AWS/cloudformation/004-registry.yaml --no-fail-on-empty-changeset
+
+      - name: Build & push all images
+        env:
+          TAG: ${{ inputs.image_tag }}
+          REGION: ${{ inputs.aws_region }}
+        run: |
+          set -e
+          ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+          REG="${ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com"
+          for entry in \
+            "gateway:services/gateway/Dockerfile" \
+            "customer-service:services/customer-service/Dockerfile" \
+            "admin-service:services/admin-service/Dockerfile" \
+            "ai-adapters:services/ai-adapters/Dockerfile" \
+            "image-processing-service:services/image-processing-service/Dockerfile" \
+            "portals:portals/Dockerfile"; do
+            name="${entry%%:*}"; dockerfile="${entry##*:}"
+            echo "::group::build $name"
+            docker build -f "$dockerfile" -t "$REG/img2pmpt/$name:$TAG" .
+            docker push "$REG/img2pmpt/$name:$TAG"
+            echo "::endgroup::"
+          done
+
+      - name: 005 Compute
+        run: |
+          aws cloudformation deploy --stack-name img2pmpt-compute \
+            --template-file DevOps/AWS/cloudformation/005-compute.yaml \
+            --parameter-overrides ImageTag="${{ inputs.image_tag }}" \
+            --capabilities CAPABILITY_IAM --no-fail-on-empty-changeset
+
+      - name: 006 Portals
+        run: |
+          aws cloudformation deploy --stack-name img2pmpt-portals \
+            --template-file DevOps/AWS/cloudformation/006-portals.yaml \
+            --parameter-overrides ImageTag="${{ inputs.image_tag }}" --no-fail-on-empty-changeset
+
+      - name: Output ALB URL
+        run: |
+          echo "App URL: http://$(aws cloudformation describe-stacks --stack-name img2pmpt-compute \
+            --query "Stacks[0].Outputs[?OutputKey=='AlbDNSName'].OutputValue" --output text)"
