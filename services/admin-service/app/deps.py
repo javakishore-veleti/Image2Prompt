@@ -12,5 +12,7 @@ WRITE_ROLES = {"admin", "superadmin"}
 current_admin = make_principal_dep(settings, required_type="admin")
 # Mutating actions require admin or superadmin (viewer is read-only).
 admin_writer = make_role_dep(settings, required_type="admin", roles=WRITE_ROLES)
+# Admin-user management is superadmin-only.
+superadmin_only = make_role_dep(settings, required_type="admin", roles={"superadmin"})
 
-__all__ = ["get_db", "current_admin", "admin_writer"]
+__all__ = ["get_db", "current_admin", "admin_writer", "superadmin_only"]

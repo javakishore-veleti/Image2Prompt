@@ -65,13 +65,19 @@ export class ShellComponent {
   auth = inject(AuthService);
   private router = inject(Router);
 
-  nav: NavItem[] = [
-    { label: 'Dashboard', link: '/dashboard' },
-    { label: 'Customer Search', link: '/customers/search' },
-    { label: 'Customer Listing', link: '/customers', exact: true },
-    { label: 'Customer Endpoints', link: '/customers/endpoints' },
-    { label: 'Providers', link: '/providers' },
-  ];
+  get nav(): NavItem[] {
+    const items: NavItem[] = [
+      { label: 'Dashboard', link: '/dashboard' },
+      { label: 'Customer Search', link: '/customers/search' },
+      { label: 'Customer Listing', link: '/customers', exact: true },
+      { label: 'Customer Endpoints', link: '/customers/endpoints' },
+      { label: 'Providers', link: '/providers' },
+    ];
+    if (this.auth.isSuperadmin) {
+      items.push({ label: 'Admins', link: '/admins' });
+    }
+    return items;
+  }
 
   signout(): void {
     this.auth.logout();

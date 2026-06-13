@@ -45,6 +45,16 @@ export class ApiService {
     return this.http.get(`${this.admin}/analytics`);
   }
 
+  admins(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.admin}/users`);
+  }
+  createAdmin(body: { email: string; password: string; role: string }): Observable<any> {
+    return this.http.post(`${this.admin}/users`, body);
+  }
+  deleteAdmin(id: string): Observable<void> {
+    return this.http.delete<void>(`${this.admin}/users/${id}`);
+  }
+
   updateProvider(id: string, body: Partial<Provider>): Observable<Provider> {
     return this.http.patch<Provider>(`${this.admin}/providers/${id}`, body);
   }

@@ -15,6 +15,7 @@ from image2prompt_shared.observability import (
 from image2prompt_shared.request_context import RequestIdMiddleware
 
 from .api import (
+    admin_users_controller,
     analytics_controller,
     auth_controller,
     customers_controller,
@@ -56,6 +57,7 @@ app.include_router(providers_controller.router)
 app.include_router(providers_controller.internal)
 app.include_router(customers_controller.router)
 app.include_router(analytics_controller.router)
+app.include_router(admin_users_controller.router)
 
 
 @app.get("/health", tags=["health"])

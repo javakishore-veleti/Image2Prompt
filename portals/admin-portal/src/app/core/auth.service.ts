@@ -14,11 +14,17 @@ export interface AdminTokenResponse {
 const TOKEN_KEY = 'i2p_admin_token';
 const REFRESH_KEY = 'i2p_admin_refresh';
 const EMAIL_KEY = 'i2p_admin_email';
+const ROLE_KEY = 'i2p_admin_role';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private base = `${environment.gatewayUrl}/api/admin/auth`;
   readonly email = signal<string | null>(localStorage.getItem(EMAIL_KEY));
+  readonly role = signal<string | null>(localStorage.getItem(ROLE_KEY));
+
+  get isSuperadmin(): boolean {
+    return this.role() === 'superadmin';
+  }
 
   constructor(private http: HttpClient) {}
 
@@ -52,7 +58,9 @@ export class AuthService {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(REFRESH_KEY);
     localStorage.removeItem(EMAIL_KEY);
+    localStorage.removeItem(ROLE_KEY);
     this.email.set(null);
+    this.role.set(null);
   }
 
   private persist(res: AdminTokenResponse): void {
@@ -61,6 +69,8 @@ export class AuthService {
       localStorage.setItem(REFRESH_KEY, res.refresh_token);
     }
     localStorage.setItem(EMAIL_KEY, res.email);
+    localStorage.setItem(ROLE_KEY, res.role);
     this.email.set(res.email);
+    this.role.set(res.role);
   }
 }

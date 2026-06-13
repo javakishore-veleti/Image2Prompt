@@ -56,6 +56,31 @@ class AdminUserResp(BaseResp):
     admin: Optional[AdminUser] = None
 
 
+@dataclass(kw_only=True)
+class CreateAdminReq(BaseReq):
+    db: Session
+    email: str
+    password: str
+    role: str = "viewer"
+
+
+@dataclass(kw_only=True)
+class ListAdminsReq(BaseReq):
+    db: Session
+
+
+@dataclass(kw_only=True)
+class DeleteAdminReq(BaseReq):
+    db: Session
+    admin_id: str
+    actor_id: str
+
+
+@dataclass(kw_only=True)
+class AdminUserListResp(BaseResp):
+    admins: list[AdminUser] = field(default_factory=list)
+
+
 # --- providers ---
 @dataclass(kw_only=True)
 class ListProvidersReq(BaseReq):

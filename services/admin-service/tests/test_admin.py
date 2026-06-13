@@ -90,3 +90,36 @@ def test_viewer_role_is_read_only():
         pid = {p["key"]: p["id"] for p in providers.json()}["mock"]
         # but cannot mutate them
         assert client.patch(f"/admin/providers/{pid}", json={"enabled": True}, headers=h).status_code == 403
+
+
+def test_admin_user_management():
+    with TestClient(app) as client:
+        token = _login(client)  # seeded superadmin
+        h = {"Authorization": f"Bearer {token}"}
+
+        # superadmin creates a viewer admin
+        r = client.post(
+            "/admin/users",
+            json={"email": "viewer2@test.io", "password": "pw12345678", "role": "viewer"},
+            headers=h,
+        )
+        assert r.status_code == 201, r.text
+        new_id = r.json()["id"]
+        assert r.json()["role"] == "viewer"
+
+        # it shows in the listing
+        emails = {a["email"] for a in client.get("/admin/users", headers=h).json()}
+        assert "viewer2@test.io" in emails
+
+        # the created viewer can log in but is read-only
+        vt = client.post(
+            "/admin/auth/login", json={"email": "viewer2@test.io", "password": "pw12345678"}
+        ).json()["access_token"]
+        vh = {"Authorization": f"Bearer {vt}"}
+        assert client.get("/admin/users", headers=vh).status_code == 403  # not superadmin
+        prov = client.get("/admin/providers", headers=vh)
+        pid = {p["key"]: p["id"] for p in prov.json()}["mock"]
+        assert client.patch(f"/admin/providers/{pid}", json={"enabled": True}, headers=vh).status_code == 403
+
+        # delete the viewer
+        assert client.delete(f"/admin/users/{new_id}", headers=h).status_code == 204

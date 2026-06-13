@@ -18,6 +18,17 @@ class IAdminAuthFacade(ABC):
     def logout(self, req: "dto.AdminLogoutReq") -> "dto.AdminLogoutResp": ...
 
 
+class IAdminUsersFacade(ABC):
+    @abstractmethod
+    def create_admin(self, req: "dto.CreateAdminReq") -> "dto.AdminUserResp": ...
+
+    @abstractmethod
+    def list_admins(self, req: "dto.ListAdminsReq") -> "dto.AdminUserListResp": ...
+
+    @abstractmethod
+    def delete_admin(self, req: "dto.DeleteAdminReq") -> "dto.AdminUserResp": ...
+
+
 class IProvidersFacade(ABC):
     @abstractmethod
     def list_providers(self, req: "dto.ListProvidersReq") -> "dto.ProviderListResp": ...

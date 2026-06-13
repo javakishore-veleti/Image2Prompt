@@ -5,11 +5,13 @@ from __future__ import annotations
 from .dao.admin_user_dao import AdminUserDao
 from .dao.provider_dao import ProviderDao
 from .dao.revoked_token_dao import RevokedTokenDao
+from .facades.admin_users_facade import AdminUsersFacade
 from .facades.analytics_facade import AnalyticsFacade
 from .facades.auth_facade import AdminAuthFacade
 from .facades.customers_facade import CustomersFacade
 from .facades.interfaces import (
     IAdminAuthFacade,
+    IAdminUsersFacade,
     IAnalyticsFacade,
     ICustomersFacade,
     IProvidersFacade,
@@ -38,6 +40,7 @@ _customers_facade: ICustomersFacade = CustomersFacade(directory_service=_directo
 _analytics_facade: IAnalyticsFacade = AnalyticsFacade(
     provider_dao=_provider_dao, analytics_service=_analytics_service
 )
+_admin_users_facade: IAdminUsersFacade = AdminUsersFacade(admin_user_dao=_admin_user_dao)
 
 
 def get_auth_facade() -> IAdminAuthFacade:
@@ -54,3 +57,7 @@ def get_customers_facade() -> ICustomersFacade:
 
 def get_analytics_facade() -> IAnalyticsFacade:
     return _analytics_facade
+
+
+def get_admin_users_facade() -> IAdminUsersFacade:
+    return _admin_users_facade
