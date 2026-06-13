@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from .base import InvokeResult, ProviderController
+from ..dtos.internal_dtos import ProviderInvokeReq, ProviderInvokeResp
+from .base import ProviderController
 
 
 class _StubController(ProviderController):
@@ -8,9 +9,7 @@ class _StubController(ProviderController):
 
     implemented = False
 
-    async def invoke(
-        self, *, request_id: str, instruction: str, image_base64: str, media_type: str, config: dict
-    ) -> InvokeResult:
+    async def invoke(self, req: ProviderInvokeReq) -> ProviderInvokeResp:
         raise NotImplementedError(f"Provider '{self.key}' is not implemented yet")
 
 

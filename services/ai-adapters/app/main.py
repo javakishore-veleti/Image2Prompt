@@ -1,13 +1,17 @@
 from __future__ import annotations
 
-import time
-
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from image2prompt_shared.logging_config import configure_logging, get_logger
+from image2prompt_shared.observability import init_observability
+
+from .api import invoke_controller
 from .config import settings
-from .registry import REGISTRY
-from .schemas import InvokeRequest, InvokeResponse, ProviderInfo
+
+configure_logging(service_name=settings.service_name, level=settings.log_level, as_json=settings.log_json)
+init_observability(settings)
+log = get_logger(__name__)
 
 app = FastAPI(title="Image2Prompt AI Adapters")
 
@@ -19,56 +23,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(invoke_controller.router)
+
 
 @app.get("/health", tags=["health"])
 def health():
-    return {"status": "ok", "service": "ai-adapters"}
-
-
-@app.get("/providers", response_model=list[ProviderInfo], tags=["providers"])
-def list_providers():
-    return [ProviderInfo(key=k, implemented=c.implemented) for k, c in REGISTRY.items()]
-
-
-@app.post("/invoke", response_model=InvokeResponse, tags=["invoke"])
-async def invoke(req: InvokeRequest) -> InvokeResponse:
-    controller = REGISTRY.get(req.provider_key)
-    if controller is None:
-        raise HTTPException(status_code=404, detail=f"Unknown provider: {req.provider_key}")
-
-    started = time.perf_counter()
-    try:
-        result = await controller.invoke(
-            request_id=req.request_id,
-            instruction=req.instruction,
-            image_base64=req.image_base64,
-            media_type=req.media_type,
-            config=req.config,
-        )
-        latency_ms = int((time.perf_counter() - started) * 1000)
-        return InvokeResponse(
-            provider_key=req.provider_key,
-            request_id=req.request_id,
-            status="success",
-            output_text=result.output_text,
-            raw=result.raw,
-            latency_ms=latency_ms,
-        )
-    except NotImplementedError as exc:
-        latency_ms = int((time.perf_counter() - started) * 1000)
-        return InvokeResponse(
-            provider_key=req.provider_key,
-            request_id=req.request_id,
-            status="error",
-            latency_ms=latency_ms,
-            error={"type": "not_implemented", "message": str(exc)},
-        )
-    except Exception as exc:  # provider/SDK failure (e.g. missing AWS creds)
-        latency_ms = int((time.perf_counter() - started) * 1000)
-        return InvokeResponse(
-            provider_key=req.provider_key,
-            request_id=req.request_id,
-            status="error",
-            latency_ms=latency_ms,
-            error={"type": exc.__class__.__name__, "message": str(exc)},
-        )
+    return {"status": "ok", "service": settings.service_name}

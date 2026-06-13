@@ -3,15 +3,12 @@ from __future__ import annotations
 import base64
 import hashlib
 
-from .base import InvokeResult, ProviderController
+from ..dtos.internal_dtos import ProviderInvokeReq, ProviderInvokeResp
+from .base import ProviderController
 
 
 class MockController(ProviderController):
-    """Deterministic offline provider.
-
-    Produces a plausible reverse prompt derived from the image bytes so the full
-    signup -> upload -> generate -> list flow works with zero cloud credentials.
-    """
+    """Deterministic offline provider — works with zero cloud credentials."""
 
     key = "mock"
     implemented = True
@@ -20,13 +17,11 @@ class MockController(ProviderController):
     _LENSES = ["35mm", "50mm", "85mm portrait", "wide-angle 24mm"]
     _MOODS = ["golden-hour warmth", "moody low-key lighting", "soft diffused daylight"]
 
-    async def invoke(
-        self, *, request_id: str, instruction: str, image_base64: str, media_type: str, config: dict
-    ) -> InvokeResult:
+    async def invoke(self, req: ProviderInvokeReq) -> ProviderInvokeResp:
         try:
-            raw_bytes = base64.b64decode(image_base64)
+            raw_bytes = base64.b64decode(req.image_base64)
         except Exception:
-            raw_bytes = image_base64.encode("utf-8")
+            raw_bytes = req.image_base64.encode("utf-8")
         digest = hashlib.sha256(raw_bytes).digest()
         style = self._STYLES[digest[0] % len(self._STYLES)]
         lens = self._LENSES[digest[1] % len(self._LENSES)]
@@ -36,7 +31,7 @@ class MockController(ProviderController):
             f"a clear focal subject, rendered with {mood}. Rich detail, high dynamic range, "
             f"and a cohesive color palette. (mock provider — {len(raw_bytes)} bytes analyzed)"
         )
-        return InvokeResult(
+        return ProviderInvokeResp(
             output_text=text,
-            raw={"provider": "mock", "bytes": len(raw_bytes), "request_id": request_id},
+            raw={"provider": "mock", "bytes": len(raw_bytes), "request_id": req.request_id},
         )
