@@ -15,6 +15,9 @@ class IAuthFacade(ABC):
     @abstractmethod
     def login(self, req: "dto.LoginReq") -> "dto.AuthResp": ...
 
+    @abstractmethod
+    def refresh(self, req: "dto.RefreshReq") -> "dto.AuthResp": ...
+
 
 class IProfileFacade(ABC):
     @abstractmethod

@@ -5,12 +5,14 @@ import { environment } from '../../environments/environment';
 
 export interface AdminTokenResponse {
   access_token: string;
+  refresh_token?: string;
   token_type: string;
   email: string;
   role: string;
 }
 
 const TOKEN_KEY = 'i2p_admin_token';
+const REFRESH_KEY = 'i2p_admin_refresh';
 const EMAIL_KEY = 'i2p_admin_email';
 
 @Injectable({ providedIn: 'root' })
@@ -23,6 +25,9 @@ export class AuthService {
   get token(): string | null {
     return localStorage.getItem(TOKEN_KEY);
   }
+  get refreshTokenValue(): string | null {
+    return localStorage.getItem(REFRESH_KEY);
+  }
   get isAuthenticated(): boolean {
     return !!this.token;
   }
@@ -30,18 +35,28 @@ export class AuthService {
   login(email: string, password: string): Observable<AdminTokenResponse> {
     return this.http
       .post<AdminTokenResponse>(`${this.base}/login`, { email, password })
-      .pipe(
-        tap((res) => {
-          localStorage.setItem(TOKEN_KEY, res.access_token);
-          localStorage.setItem(EMAIL_KEY, res.email);
-          this.email.set(res.email);
-        }),
-      );
+      .pipe(tap((res) => this.persist(res)));
+  }
+
+  refresh(): Observable<AdminTokenResponse> {
+    return this.http
+      .post<AdminTokenResponse>(`${this.base}/refresh`, { refresh_token: this.refreshTokenValue })
+      .pipe(tap((res) => this.persist(res)));
   }
 
   logout(): void {
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(REFRESH_KEY);
     localStorage.removeItem(EMAIL_KEY);
     this.email.set(null);
+  }
+
+  private persist(res: AdminTokenResponse): void {
+    localStorage.setItem(TOKEN_KEY, res.access_token);
+    if (res.refresh_token) {
+      localStorage.setItem(REFRESH_KEY, res.refresh_token);
+    }
+    localStorage.setItem(EMAIL_KEY, res.email);
+    this.email.set(res.email);
   }
 }

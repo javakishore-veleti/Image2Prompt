@@ -48,8 +48,10 @@ ROUTES: list[Route] = [
 # Routes that do not require a valid JWT.
 PUBLIC_PATHS = {
     "/api/admin/auth/login",
+    "/api/admin/auth/refresh",
     "/api/customer/auth/login",
     "/api/customer/auth/signup",
+    "/api/customer/auth/refresh",
     "/health",
 }
 

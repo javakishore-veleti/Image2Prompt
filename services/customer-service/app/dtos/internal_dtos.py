@@ -33,8 +33,15 @@ class LoginReq(BaseReq):
 
 
 @dataclass(kw_only=True)
+class RefreshReq(BaseReq):
+    db: Session
+    refresh_token: str
+
+
+@dataclass(kw_only=True)
 class AuthResp(BaseResp):
     access_token: Optional[str] = None
+    refresh_token: Optional[str] = None
     customer_id: Optional[str] = None
     email: Optional[str] = None
 

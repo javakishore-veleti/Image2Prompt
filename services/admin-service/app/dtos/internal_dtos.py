@@ -21,8 +21,15 @@ class AdminLoginReq(BaseReq):
 
 
 @dataclass(kw_only=True)
+class AdminRefreshReq(BaseReq):
+    db: Session
+    refresh_token: str
+
+
+@dataclass(kw_only=True)
 class AdminAuthResp(BaseResp):
     access_token: Optional[str] = None
+    refresh_token: Optional[str] = None
     email: Optional[str] = None
     role: str = "admin"
 

@@ -102,3 +102,23 @@ def test_billing_without_stripe_is_graceful():
 
         si = client.post("/me/payment-settings/setup-intent", headers=h).json()
         assert si["configured"] is False and si["client_secret"] is None
+
+
+def test_refresh_token_flow():
+    with TestClient(app) as client:
+        signup = client.post(
+            "/auth/signup", json={"email": "refresh@example.com", "password": "pw123456"}
+        ).json()
+        assert signup["refresh_token"]
+        # exchange refresh for a new access token
+        r = client.post("/auth/refresh", json={"refresh_token": signup["refresh_token"]})
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["access_token"] and body["refresh_token"]
+        # the new access token works
+        me = client.get("/me", headers={"Authorization": f"Bearer {body['access_token']}"})
+        assert me.status_code == 200
+
+        # an access token is NOT accepted as a refresh token
+        bad = client.post("/auth/refresh", json={"refresh_token": signup["access_token"]})
+        assert bad.status_code == 401

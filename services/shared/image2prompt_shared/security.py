@@ -54,6 +54,27 @@ def create_access_token(
     return jwt.encode(payload, secret, algorithm=algorithm)
 
 
+def create_refresh_token(
+    *,
+    subject: str,
+    email: str,
+    secret: str,
+    algorithm: str = "HS256",
+    expire_minutes: int = 60 * 24 * 30,
+    extra: dict[str, Any] | None = None,
+) -> str:
+    """A long-lived token of type 'refresh' used only to mint new access tokens."""
+    return create_access_token(
+        subject=subject,
+        token_type="refresh",
+        email=email,
+        secret=secret,
+        algorithm=algorithm,
+        expire_minutes=expire_minutes,
+        extra=extra,
+    )
+
+
 def decode_token(token: str, *, secret: str, algorithm: str = "HS256") -> dict[str, Any]:
     """Decode and validate a JWT. Raises ``jwt.PyJWTError`` on failure."""
     return jwt.decode(token, secret, algorithms=[algorithm])

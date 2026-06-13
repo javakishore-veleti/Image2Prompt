@@ -42,6 +42,7 @@ class ServiceSettings(BaseSettings):
     jwt_secret: str = "dev-insecure-secret-change-me-please-32b"
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24
+    jwt_refresh_expire_minutes: int = 60 * 24 * 30
 
     # --- Database (shared server; one DB, one schema per service) ---
     database_url: str = (

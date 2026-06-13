@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from image2prompt_shared.dtos import BaseReq, BaseResp
 from image2prompt_shared.layers import BaseService
 from image2prompt_shared.observability import observe
-from image2prompt_shared.security import create_access_token
+from image2prompt_shared.security import create_access_token, create_refresh_token
 
 from ..config import settings
 
@@ -20,12 +20,13 @@ class IssueAdminTokenReq(BaseReq):
 @dataclass(kw_only=True)
 class IssueAdminTokenResp(BaseResp):
     access_token: str = ""
+    refresh_token: str = ""
 
 
 class AdminTokenService(BaseService):
     @observe("AdminTokenService.issue")
     def issue(self, req: IssueAdminTokenReq) -> IssueAdminTokenResp:
-        token = create_access_token(
+        access = create_access_token(
             subject=req.admin_id,
             token_type="admin",
             email=req.email,
@@ -34,4 +35,12 @@ class AdminTokenService(BaseService):
             expire_minutes=settings.jwt_expire_minutes,
             extra={"role": req.role},
         )
-        return IssueAdminTokenResp(access_token=token)
+        refresh = create_refresh_token(
+            subject=req.admin_id,
+            email=req.email,
+            secret=settings.jwt_secret,
+            algorithm=settings.jwt_algorithm,
+            expire_minutes=settings.jwt_refresh_expire_minutes,
+            extra={"role": req.role},
+        )
+        return IssueAdminTokenResp(access_token=access, refresh_token=refresh)

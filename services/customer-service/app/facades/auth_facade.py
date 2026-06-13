@@ -1,17 +1,22 @@
 from __future__ import annotations
 
+import jwt
+
 from image2prompt_shared.layers import BaseFacade
 from image2prompt_shared.observability import Metrics, observe, set_span_attributes
-from image2prompt_shared.security import hash_password, verify_password
+from image2prompt_shared.security import decode_token, hash_password, verify_password
 
+from ..config import settings
 from ..dao.customer_dao import CustomerDao
 from ..dao.preference_dao import PreferenceDao
 from ..dtos.internal_dtos import (
     AuthResp,
     CreateCustomerReq,
     GetByEmailReq,
+    GetByIdReq,
     GetPrefsReq,
     LoginReq,
+    RefreshReq,
     SignupReq,
 )
 from ..services.token_service import IssueTokenReq, TokenService
@@ -51,12 +56,13 @@ class AuthFacade(BaseFacade, IAuthFacade):
         self.preference_dao.get_or_create(GetPrefsReq(db=req.db, customer_id=customer.id))
         req.db.commit()
 
-        token = self.token_service.issue(
-            IssueTokenReq(customer_id=customer.id, email=customer.email)
-        ).access_token
+        tok = self.token_service.issue(IssueTokenReq(customer_id=customer.id, email=customer.email))
         Metrics.counter_add("customer.signup.success")
         self.log.info("signup ok customer_id=%s", customer.id)
-        return AuthResp(access_token=token, customer_id=customer.id, email=customer.email)
+        return AuthResp(
+            access_token=tok.access_token, refresh_token=tok.refresh_token,
+            customer_id=customer.id, email=customer.email,
+        )
 
     @observe("AuthFacade.login", metric="customer.login")
     def login(self, req: LoginReq) -> AuthResp:
@@ -65,8 +71,30 @@ class AuthFacade(BaseFacade, IAuthFacade):
         if customer is None or not verify_password(req.password, customer.password_hash):
             Metrics.counter_add("customer.login.failure")
             return AuthResp.failure(error_code="unauthorized", error_message="Invalid credentials")
-        token = self.token_service.issue(
-            IssueTokenReq(customer_id=customer.id, email=customer.email)
-        ).access_token
+        tok = self.token_service.issue(IssueTokenReq(customer_id=customer.id, email=customer.email))
         Metrics.counter_add("customer.login.success")
-        return AuthResp(access_token=token, customer_id=customer.id, email=customer.email)
+        return AuthResp(
+            access_token=tok.access_token, refresh_token=tok.refresh_token,
+            customer_id=customer.id, email=customer.email,
+        )
+
+    @observe("AuthFacade.refresh", metric="customer.refresh")
+    def refresh(self, req: RefreshReq) -> AuthResp:
+        try:
+            claims = decode_token(
+                req.refresh_token, secret=settings.jwt_secret, algorithm=settings.jwt_algorithm
+            )
+        except jwt.PyJWTError:
+            return AuthResp.failure(error_code="unauthorized", error_message="Invalid refresh token")
+        if claims.get("typ") != "refresh":
+            return AuthResp.failure(error_code="unauthorized", error_message="Not a refresh token")
+        customer = self.customer_dao.get_by_id(
+            GetByIdReq(db=req.db, customer_id=claims.get("sub", ""))
+        ).customer
+        if customer is None:
+            return AuthResp.failure(error_code="unauthorized", error_message="Unknown customer")
+        tok = self.token_service.issue(IssueTokenReq(customer_id=customer.id, email=customer.email))
+        return AuthResp(
+            access_token=tok.access_token, refresh_token=tok.refresh_token,
+            customer_id=customer.id, email=customer.email,
+        )
