@@ -111,6 +111,7 @@ class ListActivityReq(BaseReq):
 @dataclass(kw_only=True)
 class ActivityListResp(BaseResp):
     entries: list[AuditLog] = field(default_factory=list)
+    total: int = 0
 
 
 # --- customer crud ---

@@ -105,6 +105,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Total-Count", "X-Request-ID"],
 )
 
 
@@ -209,16 +210,27 @@ def _rate_key(request: Request) -> str:
     return f"ip:{request.client.host if request.client else 'unknown'}"
 
 
-def _rate_limited(key: str) -> bool:
+# Unauthenticated auth endpoints get a tighter per-IP budget (credential-stuffing).
+AUTH_SENSITIVE_PATHS = {
+    "/api/customer/auth/login",
+    "/api/customer/auth/signup",
+    "/api/customer/auth/forgot-password",
+    "/api/customer/auth/reset-password",
+    "/api/admin/auth/login",
+}
+
+
+def _rate_limited(key: str, limit: int | None = None) -> bool:
     if not settings.rate_limit_enabled:
         return False
+    cap = settings.rate_limit_rpm if limit is None else limit
     window = int(time.time() // 60)
     bucket = (key, window)
     _RATE_WINDOWS[bucket] = _RATE_WINDOWS.get(bucket, 0) + 1
     if len(_RATE_WINDOWS) > 10000:  # opportunistic cleanup of old windows
         for k in [k for k in _RATE_WINDOWS if k[1] != window]:
             _RATE_WINDOWS.pop(k, None)
-    return _RATE_WINDOWS[bucket] > settings.rate_limit_rpm
+    return _RATE_WINDOWS[bucket] > cap
 
 
 @app.api_route("/api/{full_path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
@@ -240,6 +252,16 @@ async def proxy(full_path: str, request: Request) -> Response:
             status_code=429, content={"detail": "Rate limit exceeded"},
             headers={"Retry-After": "60", "X-Request-ID": request_id},
         )
+
+    # Tighter per-IP budget on unauthenticated auth endpoints.
+    if path in AUTH_SENSITIVE_PATHS:
+        ip = request.client.host if request.client else "unknown"
+        if _rate_limited(f"auth:{path}:{ip}", settings.auth_rate_limit_rpm):
+            Metrics.counter_add("gateway.auth_rate_limited", 1, {"path": path})
+            return JSONResponse(
+                status_code=429, content={"detail": "Too many attempts; please wait and retry."},
+                headers={"Retry-After": "60", "X-Request-ID": request_id},
+            )
 
     # Edge auth check (public routes excepted).
     if not _is_public(path):

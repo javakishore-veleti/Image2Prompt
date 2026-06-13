@@ -1,7 +1,13 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
+
+export interface Page<T> {
+  items: T[];
+  total: number;
+}
 
 export interface ProviderResult {
   id: string;
@@ -162,9 +168,16 @@ export class ApiService {
     });
   }
 
-  activity(limit = 50, offset = 0): Observable<ActivityItem[]> {
+  activity(limit = 50, offset = 0): Observable<Page<ActivityItem>> {
     const params = new HttpParams().set('limit', String(limit)).set('offset', String(offset));
-    return this.http.get<ActivityItem[]>(`${this.customer}/me/activity`, { params });
+    return this.http
+      .get<ActivityItem[]>(`${this.customer}/me/activity`, { params, observe: 'response' })
+      .pipe(
+        map((r) => ({
+          items: r.body ?? [],
+          total: Number(r.headers.get('X-Total-Count') ?? (r.body?.length ?? 0)),
+        })),
+      );
   }
 
   prompts(search?: string): Observable<PromptItem[]> {

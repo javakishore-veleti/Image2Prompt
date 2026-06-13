@@ -52,6 +52,21 @@ def test_body_size_limit_returns_413(monkeypatch):
     assert r.status_code == 413
 
 
+def test_auth_endpoints_have_tighter_rate_limit(monkeypatch):
+    from app.config import settings
+
+    # General budget high, auth budget low: the auth limiter should trip first.
+    monkeypatch.setattr(settings, "rate_limit_rpm", 1000)
+    monkeypatch.setattr(settings, "auth_rate_limit_rpm", 2)
+    statuses = [
+        client.post("/api/customer/auth/login", json={"email": "a@b.io", "password": "x"}).status_code
+        for _ in range(4)
+    ]
+    assert 429 in statuses
+    # a non-auth path under the same client is not blocked by the auth limiter
+    assert client.get("/health").status_code == 200
+
+
 def test_csp_report_sink_accepts_reports():
     # The dedicated CSP-report route is public and bypasses the proxy/auth.
     r = client.post("/api/csp-report", json={"csp-report": {"violated-directive": "img-src 'self'"}})

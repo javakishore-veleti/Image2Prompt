@@ -387,12 +387,14 @@ def test_internal_customer_activity_and_pagination():
         assert len(internal) >= 4  # signup + 3 logins
         assert all("action" in e for e in internal)
 
-        # pagination: page 1 and page 2 don't overlap
-        p1 = client.get("/me/activity", params={"limit": 2, "offset": 0}, headers=h).json()
+        # pagination: page 1 and page 2 don't overlap; total count is in the header
+        r1 = client.get("/me/activity", params={"limit": 2, "offset": 0}, headers=h)
+        p1 = r1.json()
         p2 = client.get("/me/activity", params={"limit": 2, "offset": 2}, headers=h).json()
         assert len(p1) == 2
         ids = {e["id"] for e in p1} & {e["id"] for e in p2}
         assert not ids
+        assert int(r1.headers["X-Total-Count"]) >= 4
 
 
 def test_reencrypt_tokens_rotates_to_new_key(monkeypatch):

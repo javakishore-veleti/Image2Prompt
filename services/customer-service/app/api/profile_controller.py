@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 from image2prompt_shared.api_errors import ensure_ok
@@ -27,6 +27,7 @@ def get_me(
 
 @router.get("/activity", response_model=list[ActivityOut])
 def get_activity(
+    response: Response,
     limit: int = Query(default=50, le=200),
     offset: int = Query(default=0, ge=0),
     principal: Principal = Depends(current_customer),
@@ -41,6 +42,7 @@ def get_activity(
             )
         )
     )
+    response.headers["X-Total-Count"] = str(resp.total)
     return [ActivityOut.model_validate(e) for e in resp.entries]
 
 

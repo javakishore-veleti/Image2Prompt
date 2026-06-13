@@ -103,6 +103,7 @@ import { AuthService } from '../core/auth.service';
         </tbody>
       </table>
       <ng-template #noaudit><p class="muted">No admin actions recorded yet.</p></ng-template>
+      <p class="muted small" *ngIf="auditTotal()">Showing {{ audit().length }} of {{ auditTotal() }}</p>
       <button class="ghost more" *ngIf="canLoadAudit()" (click)="loadMoreAudit()">Load more</button>
     </div>
 
@@ -154,6 +155,7 @@ export class SecurityComponent {
   data = signal<CspDashboard | null>(null);
   rot = signal<RotationStatus | null>(null);
   audit = signal<AuditEntry[]>([]);
+  auditTotal = signal(0);
   canLoadAudit = signal(false);
   private auditPageSize = 100;
   loading = signal(false);
@@ -187,9 +189,10 @@ export class SecurityComponent {
 
   loadAudit(): void {
     this.api.auditLog(this.filter()).subscribe({
-      next: (a) => {
-        this.audit.set(a);
-        this.canLoadAudit.set(a.length === this.auditPageSize);
+      next: (page) => {
+        this.audit.set(page.items);
+        this.auditTotal.set(page.total);
+        this.canLoadAudit.set(this.audit().length < page.total);
       },
       error: () => {},
     });
@@ -197,9 +200,10 @@ export class SecurityComponent {
 
   loadMoreAudit(): void {
     this.api.auditLog(this.filter(), this.audit().length).subscribe({
-      next: (a) => {
-        this.audit.update((cur) => [...cur, ...a]);
-        this.canLoadAudit.set(a.length === this.auditPageSize);
+      next: (page) => {
+        this.audit.update((cur) => [...cur, ...page.items]);
+        this.auditTotal.set(page.total);
+        this.canLoadAudit.set(this.audit().length < page.total);
       },
       error: () => {},
     });

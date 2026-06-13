@@ -244,6 +244,7 @@ class ListAuditReq(BaseReq):
 @dataclass(kw_only=True)
 class AuditListResp(BaseResp):
     entries: list[AuditLog] = field(default_factory=list)
+    total: int = 0
 
 
 # --- maintenance ---

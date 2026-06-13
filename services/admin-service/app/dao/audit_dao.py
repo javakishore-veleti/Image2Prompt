@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from image2prompt_shared.base import utcnow
 from image2prompt_shared.dtos import BaseResp
@@ -36,12 +36,19 @@ class AuditDao(BaseDao):
 
     @observe("AuditDao.list")
     def list(self, req: ListAuditReq) -> AuditListResp:
-        stmt = select(AuditLog)
+        conds = []
         if req.action:
-            stmt = stmt.where(AuditLog.action == req.action)
+            conds.append(AuditLog.action == req.action)
         if req.actor:
-            stmt = stmt.where(AuditLog.actor_email.ilike(f"%{req.actor}%"))
+            conds.append(AuditLog.actor_email.ilike(f"%{req.actor}%"))
         if req.days:
-            stmt = stmt.where(AuditLog.created_at >= utcnow() - timedelta(days=req.days))
-        stmt = stmt.order_by(AuditLog.created_at.desc()).limit(req.limit).offset(req.offset)
-        return AuditListResp(entries=list(req.db.scalars(stmt).all()))
+            conds.append(AuditLog.created_at >= utcnow() - timedelta(days=req.days))
+        total = int(req.db.scalar(select(func.count(AuditLog.id)).where(*conds)) or 0)
+        stmt = (
+            select(AuditLog)
+            .where(*conds)
+            .order_by(AuditLog.created_at.desc())
+            .limit(req.limit)
+            .offset(req.offset)
+        )
+        return AuditListResp(entries=list(req.db.scalars(stmt).all()), total=total)

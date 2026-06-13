@@ -56,6 +56,7 @@ async def rotation_status(
 
 @audit.get("", response_model=list[AuditOut])
 def list_audit(
+    response: Response,
     limit: int = Query(default=100, le=500),
     offset: int = Query(default=0, ge=0),
     action: str | None = Query(default=None),
@@ -70,6 +71,7 @@ def list_audit(
             ListAuditReq(db=db, limit=limit, offset=offset, action=action, actor=actor, days=days)
         )
     )
+    response.headers["X-Total-Count"] = str(resp.total)
     return [AuditOut.model_validate(e) for e in resp.entries]
 
 

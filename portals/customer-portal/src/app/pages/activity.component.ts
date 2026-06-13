@@ -25,6 +25,7 @@ import { ActivityItem, ApiService } from '../core/api.service';
         </tbody>
       </table>
       <ng-template #empty><p class="muted">No activity recorded yet.</p></ng-template>
+      <p class="muted small" *ngIf="total()">Showing {{ items().length }} of {{ total() }}</p>
       <button class="ghost more" *ngIf="canLoadMore()" (click)="loadMore()">Load more</button>
     </div>
   `,
@@ -34,12 +35,14 @@ import { ActivityItem, ApiService } from '../core/api.service';
       .badge { padding: 2px 8px; border-radius: 999px; background: var(--panel-2); font-weight: 600; font-size: 12px; }
       .badge.warn { background: #fde8e8; color: #c0392b; }
       .more { margin-top: 12px; }
+      .small { font-size: 12px; }
     `,
   ],
 })
 export class ActivityComponent {
   private api = inject(ApiService);
   items = signal<ActivityItem[]>([]);
+  total = signal(0);
   private pageSize = 50;
   canLoadMore = signal(false);
 
@@ -60,9 +63,10 @@ export class ActivityComponent {
 
   loadMore(): void {
     this.api.activity(this.pageSize, this.items().length).subscribe({
-      next: (a) => {
-        this.items.update((cur) => [...cur, ...a]);
-        this.canLoadMore.set(a.length === this.pageSize);
+      next: (page) => {
+        this.items.update((cur) => [...cur, ...page.items]);
+        this.total.set(page.total);
+        this.canLoadMore.set(this.items().length < page.total);
       },
       error: () => {},
     });

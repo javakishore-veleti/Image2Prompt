@@ -1,7 +1,13 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
+
+export interface Page<T> {
+  items: T[];
+  total: number;
+}
 
 export interface Customer {
   id: string;
@@ -106,12 +112,19 @@ export class ApiService {
     return this.http.get<RotationStatus>(`${this.admin}/maintenance/rotation-status`);
   }
 
-  auditLog(filter: AuditFilter = {}, offset = 0): Observable<AuditEntry[]> {
+  auditLog(filter: AuditFilter = {}, offset = 0): Observable<Page<AuditEntry>> {
     let params = this.auditParams(filter);
     if (offset) {
       params = params.set('offset', String(offset));
     }
-    return this.http.get<AuditEntry[]>(`${this.admin}/audit-log`, { params });
+    return this.http
+      .get<AuditEntry[]>(`${this.admin}/audit-log`, { params, observe: 'response' })
+      .pipe(
+        map((r) => ({
+          items: r.body ?? [],
+          total: Number(r.headers.get('X-Total-Count') ?? (r.body?.length ?? 0)),
+        })),
+      );
   }
 
   exportAudit(filter: AuditFilter = {}): Observable<Blob> {

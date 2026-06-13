@@ -365,9 +365,11 @@ def test_audit_log_filter_and_export():
         h = {"Authorization": f"Bearer {_login(client)}"}
         client.post("/admin/maintenance/prune", headers=h)
 
-        # filter by action
-        rows = client.get("/admin/audit-log", params={"action": "maintenance.prune"}, headers=h).json()
-        assert rows and all(r["action"] == "maintenance.prune" for r in rows)
+        # filter by action + total-count header
+        r = client.get("/admin/audit-log", params={"action": "maintenance.prune"}, headers=h)
+        rows = r.json()
+        assert rows and all(rr["action"] == "maintenance.prune" for rr in rows)
+        assert int(r.headers["X-Total-Count"]) >= len(rows)
 
         # filter by actor substring
         rows2 = client.get("/admin/audit-log", params={"actor": "admin@test"}, headers=h).json()

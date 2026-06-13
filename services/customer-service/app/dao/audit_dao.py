@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 
 from image2prompt_shared.dtos import BaseResp
 from image2prompt_shared.layers import BaseDao
@@ -39,6 +39,7 @@ class AuditDao(BaseDao):
             cond = or_(AuditLog.actor_id == req.customer_id, AuditLog.actor_email == req.customer_email)
         else:
             cond = AuditLog.actor_id == req.customer_id
+        total = int(req.db.scalar(select(func.count(AuditLog.id)).where(cond)) or 0)
         rows = list(
             req.db.scalars(
                 select(AuditLog)
@@ -48,4 +49,4 @@ class AuditDao(BaseDao):
                 .offset(req.offset)
             ).all()
         )
-        return ActivityListResp(entries=rows)
+        return ActivityListResp(entries=rows, total=total)

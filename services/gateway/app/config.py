@@ -8,6 +8,9 @@ class GatewaySettings(ServiceSettings):
     # Fixed-window rate limit per client (subject if authenticated, else IP).
     rate_limit_enabled: bool = True
     rate_limit_rpm: int = 120
+    # Tighter per-IP budget for unauthenticated auth endpoints (login / signup /
+    # password reset) to blunt credential-stuffing. Failures are already audited.
+    auth_rate_limit_rpm: int = 10
     # Security response headers + max request body (bytes; 0 disables the cap).
     security_headers_enabled: bool = True
     hsts_enabled: bool = False  # enable once served over HTTPS
