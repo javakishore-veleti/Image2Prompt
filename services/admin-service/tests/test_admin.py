@@ -184,15 +184,55 @@ def test_csp_violation_ingest_and_dashboard():
             )
             assert r.status_code == 202
 
-        # admin dashboard: list + summary
+        # admin dashboard: identical reports are deduped into one row (count++),
+        # so 3 reports -> 2 distinct rows but total volume 3.
         dash = client.get("/admin/csp-violations", headers=h).json()
         assert dash["total"] == 3
-        assert len(dash["violations"]) == 3
+        assert len(dash["violations"]) == 2
+        by_dir = {v["violated_directive"]: v for v in dash["violations"]}
+        assert by_dir["img-src 'self'"]["count"] == 2
+        assert by_dir["script-src 'self'"]["count"] == 1
         counts = {s["directive"]: s["count"] for s in dash["summary"]}
         assert counts["img-src 'self'"] == 2 and counts["script-src 'self'"] == 1
 
         # dashboard requires auth
         assert client.get("/admin/csp-violations").status_code == 401
+
+
+def test_csp_retention_prune_removes_old_rows():
+    from datetime import timedelta
+
+    from sqlalchemy import select
+
+    from app.dao.csp_violation_dao import CspViolationDao
+    from app.db import db as admin_db
+    from app.models import CspViolation
+    from image2prompt_shared.base import utcnow
+
+    with TestClient(app):
+        # ingest one violation, then backdate its last-seen well past retention
+        session = admin_db.SessionLocal()
+        try:
+            CspViolationDao().create(
+                type("R", (), {
+                    "db": session, "violated_directive": "stale-dir", "blocked_uri": "b",
+                    "document_uri": None, "source_file": None, "line_number": None,
+                    "disposition": None, "user_agent": None, "raw": {},
+                })()
+            )
+            session.commit()
+            row = session.scalar(select(CspViolation).where(CspViolation.violated_directive == "stale-dir"))
+            row.updated_at = utcnow() - timedelta(days=400)
+            session.commit()
+
+            removed = CspViolationDao().prune_older_than(session, utcnow() - timedelta(days=30))
+            assert removed >= 1
+            assert (
+                session.scalar(select(CspViolation).where(CspViolation.violated_directive == "stale-dir"))
+                is None
+            )
+        finally:
+            session.close()
 
 
 def test_login_rejects_bad_password():

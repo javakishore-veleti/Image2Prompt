@@ -35,6 +35,12 @@ Parameters:
     Type: String
     Default: /api/csp-report
     Description: Where browsers POST CSP violation reports (gateway sink).
+  HstsMaxAge:
+    Type: String
+    Default: "0"
+    Description: >-
+      Strict-Transport-Security max-age (seconds). 0 disables HSTS; set to
+      31536000 once the portals are served over HTTPS (ALB/CloudFront TLS).
 
 Resources:
   PortalsTaskDef:
@@ -55,6 +61,7 @@ Resources:
             - { Name: CSP_CONNECT_SRC, Value: !Ref CspConnectSrc }
             - { Name: CSP_HEADER_NAME, Value: !Ref CspHeaderName }
             - { Name: CSP_REPORT_URI, Value: !Ref CspReportUri }
+            - { Name: HSTS_MAX_AGE, Value: !Ref HstsMaxAge }
           LogConfiguration:
             LogDriver: awslogs
             Options:

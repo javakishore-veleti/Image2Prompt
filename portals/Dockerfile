@@ -22,7 +22,8 @@ FROM nginx:alpine
 ENV CSP_HEADER_NAME="Content-Security-Policy" \
     CSP_CONNECT_SRC="'self'" \
     CSP_REPORT_URI="/api/csp-report" \
-    NGINX_ENVSUBST_FILTER="^CSP_"
+    HSTS_MAX_AGE="0" \
+    NGINX_ENVSUBST_FILTER="^(CSP_|HSTS_)"
 COPY portals/default.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /build/portals/customer-portal/dist/customer-portal/browser /usr/share/nginx/html
 COPY --from=build /build/portals/admin-portal/dist/admin-portal/browser /usr/share/nginx/html/admin

@@ -91,6 +91,8 @@ class CspViolationOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
     created_at: Any
+    updated_at: Any = None
+    count: int = 1
     document_uri: str | None = None
     violated_directive: str | None = None
     blocked_uri: str | None = None

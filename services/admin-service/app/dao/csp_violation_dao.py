@@ -1,7 +1,12 @@
 from __future__ import annotations
 
-from sqlalchemy import func, select
+import hashlib
+from datetime import datetime
 
+from sqlalchemy import delete, func, select
+from sqlalchemy.orm import Session
+
+from image2prompt_shared.base import utcnow
 from image2prompt_shared.layers import BaseDao
 from image2prompt_shared.observability import observe
 
@@ -14,10 +19,32 @@ from ..dtos.internal_dtos import (
 from ..models import CspViolation
 
 
+def _fingerprint(req: IngestViolationReq) -> str:
+    parts = [
+        req.violated_directive or "",
+        req.blocked_uri or "",
+        req.document_uri or "",
+        req.source_file or "",
+        str(req.line_number or ""),
+    ]
+    return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()
+
+
 class CspViolationDao(BaseDao):
     @observe("CspViolationDao.create")
     def create(self, req: IngestViolationReq) -> CspViolationResp:
+        # Dedupe: identical violations bump count (and updated_at = last seen)
+        # instead of inserting a new row.
+        fp = _fingerprint(req)
+        existing = req.db.scalar(select(CspViolation).where(CspViolation.fingerprint == fp))
+        if existing is not None:
+            existing.count = (existing.count or 1) + 1
+            existing.updated_at = utcnow()
+            req.db.flush()
+            return CspViolationResp(violation=existing)
         row = CspViolation(
+            fingerprint=fp,
+            count=1,
             document_uri=req.document_uri,
             violated_directive=req.violated_directive,
             blocked_uri=req.blocked_uri,
@@ -35,17 +62,23 @@ class CspViolationDao(BaseDao):
     def list(self, req: ListViolationsReq) -> CspViolationListResp:
         rows = list(
             req.db.scalars(
-                select(CspViolation).order_by(CspViolation.created_at.desc()).limit(req.limit)
+                select(CspViolation).order_by(CspViolation.updated_at.desc()).limit(req.limit)
             ).all()
         )
-        # Aggregate counts by directive across the whole table (not just the page).
+        # Aggregate by directive using the per-row counts (reflects true volume).
         summary = [
-            {"directive": d or "(unknown)", "count": int(c)}
+            {"directive": d or "(unknown)", "count": int(c or 0)}
             for d, c in req.db.execute(
-                select(CspViolation.violated_directive, func.count(CspViolation.id))
+                select(CspViolation.violated_directive, func.sum(CspViolation.count))
                 .group_by(CspViolation.violated_directive)
-                .order_by(func.count(CspViolation.id).desc())
+                .order_by(func.sum(CspViolation.count).desc())
             ).all()
         ]
-        total = int(req.db.scalar(select(func.count(CspViolation.id))) or 0)
+        total = int(req.db.scalar(select(func.sum(CspViolation.count))) or 0)
         return CspViolationListResp(violations=rows, summary=summary, total=total)
+
+    def prune_older_than(self, db: Session, cutoff: datetime) -> int:
+        """Delete violations last seen before ``cutoff``. Returns rows removed."""
+        result = db.execute(delete(CspViolation).where(CspViolation.updated_at < cutoff))
+        db.commit()
+        return result.rowcount or 0

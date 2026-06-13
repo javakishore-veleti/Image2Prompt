@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from image2prompt_shared.base import utcnow
 from image2prompt_shared.logging_config import configure_logging, get_logger
 from image2prompt_shared.observability import (
     init_observability,
@@ -39,7 +40,23 @@ async def lifespan(app: FastAPI):
     db.bootstrap(base=Base, settings=settings, service_dir=SERVICE_DIR, seed_fn=seed)
     instrument_sqlalchemy(db.engine)
     _prune_revoked_tokens()
+    _prune_csp_violations()
     yield
+
+
+def _prune_csp_violations() -> None:
+    from datetime import timedelta
+
+    from .dao.csp_violation_dao import CspViolationDao
+
+    try:
+        cutoff = utcnow() - timedelta(days=settings.csp_retention_days)
+        with db.SessionLocal() as session:
+            removed = CspViolationDao().prune_older_than(session, cutoff)
+        if removed:
+            log.info("pruned %d CSP violations older than %d days", removed, settings.csp_retention_days)
+    except Exception as exc:  # never block startup on housekeeping
+        log.warning("csp-violation prune skipped: %s", exc)
 
 
 def _prune_revoked_tokens() -> None:

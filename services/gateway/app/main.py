@@ -158,6 +158,9 @@ async def csp_report(request: Request) -> Response:
     always 204, never raises. Accepts both `application/csp-report` and the
     Reporting-API `application/reports+json` payloads.
     """
+    # Rate-limit per client so a noisy/abusive policy can't flood the sink.
+    if _rate_limited(_rate_key(request)):
+        return Response(status_code=204)
     try:
         import json
 

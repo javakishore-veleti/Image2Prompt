@@ -9,6 +9,8 @@ class AdminSettings(ServiceSettings):
     # Seeded on startup if no admin exists.
     admin_email: str = "admin@image2prompt.io"
     admin_password: str = "admin12345"
+    # CSP violation rows last seen older than this are pruned on startup.
+    csp_retention_days: int = 30
 
 
 settings = AdminSettings()

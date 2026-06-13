@@ -38,10 +38,16 @@ class RevokedToken(Base, UUIDPkMixin, TimestampMixin):
 
 class CspViolation(Base, UUIDPkMixin, TimestampMixin):
     """A Content-Security-Policy violation report forwarded by the gateway.
-    Normalized from both report-uri and Reporting-API payloads."""
+    Normalized from both report-uri and Reporting-API payloads.
+
+    Deduped by ``fingerprint``: identical violations bump ``count`` (and
+    ``updated_at`` = last seen) instead of inserting a new row, so a noisy policy
+    can't flood the table. Old rows are pruned on startup by retention age."""
 
     __tablename__ = "csp_violations"
 
+    fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    count: Mapped[int] = mapped_column(BigInteger, default=1, server_default="1")
     document_uri: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     violated_directive: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     blocked_uri: Mapped[str | None] = mapped_column(String(1024), nullable=True)
