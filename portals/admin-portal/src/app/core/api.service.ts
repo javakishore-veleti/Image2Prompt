@@ -102,10 +102,30 @@ export class ApiService {
     return this.http.get<RotationStatus>(`${this.admin}/maintenance/rotation-status`);
   }
 
-  auditLog(limit = 100): Observable<AuditEntry[]> {
-    let params = new HttpParams().set('limit', String(limit));
-    return this.http.get<AuditEntry[]>(`${this.admin}/audit-log`, { params });
+  auditLog(filter: AuditFilter = {}): Observable<AuditEntry[]> {
+    return this.http.get<AuditEntry[]>(`${this.admin}/audit-log`, { params: this.auditParams(filter) });
   }
+
+  exportAudit(filter: AuditFilter = {}): Observable<Blob> {
+    return this.http.get(`${this.admin}/audit-log/export`, {
+      params: this.auditParams(filter),
+      responseType: 'blob',
+    });
+  }
+
+  private auditParams(f: AuditFilter): HttpParams {
+    let p = new HttpParams();
+    if (f.action) p = p.set('action', f.action);
+    if (f.actor) p = p.set('actor', f.actor);
+    if (f.days) p = p.set('days', String(f.days));
+    return p;
+  }
+}
+
+export interface AuditFilter {
+  action?: string;
+  actor?: string;
+  days?: number;
 }
 
 export interface RotationStatus {

@@ -358,6 +358,30 @@ def test_audit_log_records_provider_and_maintenance_actions():
         assert client.get("/admin/audit-log").status_code == 401
 
 
+def test_audit_log_filter_and_export():
+    import json as _json
+
+    with TestClient(app) as client:
+        h = {"Authorization": f"Bearer {_login(client)}"}
+        client.post("/admin/maintenance/prune", headers=h)
+
+        # filter by action
+        rows = client.get("/admin/audit-log", params={"action": "maintenance.prune"}, headers=h).json()
+        assert rows and all(r["action"] == "maintenance.prune" for r in rows)
+
+        # filter by actor substring
+        rows2 = client.get("/admin/audit-log", params={"actor": "admin@test"}, headers=h).json()
+        assert rows2 and all("admin@test" in (r["actor_email"] or "") for r in rows2)
+
+        # NDJSON export (filtered)
+        exp = client.get("/admin/audit-log/export", params={"action": "maintenance.prune"}, headers=h)
+        assert exp.status_code == 200
+        assert exp.headers["content-type"].startswith("application/x-ndjson")
+        assert "attachment" in exp.headers.get("content-disposition", "")
+        lines = [_json.loads(ln) for ln in exp.text.splitlines() if ln]
+        assert lines and all(ln["action"] == "maintenance.prune" for ln in lines)
+
+
 def test_audit_log_covers_auth_and_admin_user_actions():
     with TestClient(app) as client:
         # a failed login is audited (actor = attempted email), then a success

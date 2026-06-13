@@ -223,6 +223,9 @@ class RecordAuditReq(BaseReq):
 class ListAuditReq(BaseReq):
     db: Session
     limit: int = 100
+    action: Optional[str] = None  # exact match
+    actor: Optional[str] = None  # substring match on actor_email
+    days: Optional[int] = None  # only entries from the last N days
 
 
 @dataclass(kw_only=True)

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from datetime import timedelta
+
 from sqlalchemy import select
 
+from image2prompt_shared.base import utcnow
 from image2prompt_shared.dtos import BaseResp
 from image2prompt_shared.layers import BaseDao
 from image2prompt_shared.observability import observe
@@ -24,13 +27,21 @@ class AuditDao(BaseDao):
             )
         )
         req.db.flush()
+        # Also emit a structured line so the entry lands in the central log/OTel
+        # pipeline (SIEM), independent of the DB row.
+        self.log.info(
+            "audit action=%s actor=%s target=%s", req.action, req.actor_email or "-", req.target or "-"
+        )
         return BaseResp()
 
     @observe("AuditDao.list")
     def list(self, req: ListAuditReq) -> AuditListResp:
-        rows = list(
-            req.db.scalars(
-                select(AuditLog).order_by(AuditLog.created_at.desc()).limit(req.limit)
-            ).all()
-        )
+        stmt = select(AuditLog)
+        if req.action:
+            stmt = stmt.where(AuditLog.action == req.action)
+        if req.actor:
+            stmt = stmt.where(AuditLog.actor_email.ilike(f"%{req.actor}%"))
+        if req.days:
+            stmt = stmt.where(AuditLog.created_at >= utcnow() - timedelta(days=req.days))
+        rows = list(req.db.scalars(stmt.order_by(AuditLog.created_at.desc()).limit(req.limit)).all())
         return AuditListResp(entries=rows)

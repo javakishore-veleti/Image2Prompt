@@ -1,12 +1,13 @@
 import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ApiService, AuditEntry, CspDashboard, RotationStatus } from '../core/api.service';
+import { FormsModule } from '@angular/forms';
+import { ApiService, AuditEntry, AuditFilter, CspDashboard, RotationStatus } from '../core/api.service';
 import { AuthService } from '../core/auth.service';
 
 @Component({
   selector: 'app-security',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   template: `
     <h2 class="page-title">Security · CSP Violations</h2>
     <p class="muted">
@@ -68,7 +69,25 @@ import { AuthService } from '../core/auth.service';
     </div>
 
     <div class="card">
-      <h3>Admin audit log</h3>
+      <div class="head">
+        <h3>Admin audit log</h3>
+        <button class="ghost" (click)="exportAudit()" [disabled]="!audit().length">Export NDJSON</button>
+      </div>
+      <div class="filters">
+        <select [(ngModel)]="fAction" (change)="applyFilters()">
+          <option value="">All actions</option>
+          <option *ngFor="let a of knownActions" [value]="a">{{ a }}</option>
+        </select>
+        <input placeholder="actor email…" [(ngModel)]="fActor" (keyup.enter)="applyFilters()" />
+        <select [(ngModel)]="fDays" (change)="applyFilters()">
+          <option [ngValue]="undefined">Any time</option>
+          <option [ngValue]="1">Last 24h</option>
+          <option [ngValue]="7">Last 7 days</option>
+          <option [ngValue]="30">Last 30 days</option>
+        </select>
+        <button class="ghost" (click)="applyFilters()">Apply</button>
+        <button class="ghost" (click)="clearFilters()">Clear</button>
+      </div>
       <table *ngIf="audit().length; else noaudit">
         <thead>
           <tr><th>When</th><th>Actor</th><th>Action</th><th>Target</th><th>Detail</th></tr>
@@ -119,6 +138,8 @@ import { AuthService } from '../core/auth.service';
       .bar.warn .count { color: #c0392b; }
       .count { font-weight: 700; color: var(--brand); }
       .head { display: flex; justify-content: space-between; align-items: center; }
+      .filters { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
+      .filters input, .filters select { width: auto; }
       .actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
       .small { font-size: 12px; }
       code { font-family: monospace; }
@@ -132,6 +153,20 @@ export class SecurityComponent {
   rot = signal<RotationStatus | null>(null);
   audit = signal<AuditEntry[]>([]);
   loading = signal(false);
+  fAction = '';
+  fActor = '';
+  fDays: number | undefined = undefined;
+  knownActions = [
+    'provider.create',
+    'provider.update',
+    'maintenance.prune',
+    'maintenance.reencrypt',
+    'admin.login.success',
+    'admin.login.failure',
+    'admin_user.create',
+    'admin_user.update',
+    'admin_user.delete',
+  ];
   busy = signal(false);
   maintMsg = signal('');
   isSuperadmin = this.auth.isSuperadmin;
@@ -139,7 +174,40 @@ export class SecurityComponent {
   constructor() {
     this.load();
     this.loadRotation();
-    this.api.auditLog().subscribe({ next: (a) => this.audit.set(a), error: () => {} });
+    this.loadAudit();
+  }
+
+  private filter(): AuditFilter {
+    return { action: this.fAction || undefined, actor: this.fActor || undefined, days: this.fDays };
+  }
+
+  loadAudit(): void {
+    this.api.auditLog(this.filter()).subscribe({ next: (a) => this.audit.set(a), error: () => {} });
+  }
+
+  applyFilters(): void {
+    this.loadAudit();
+  }
+
+  clearFilters(): void {
+    this.fAction = '';
+    this.fActor = '';
+    this.fDays = undefined;
+    this.loadAudit();
+  }
+
+  exportAudit(): void {
+    this.api.exportAudit(this.filter()).subscribe({
+      next: (blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'audit-log.ndjson';
+        a.click();
+        URL.revokeObjectURL(url);
+      },
+      error: () => {},
+    });
   }
 
   detailText(a: AuditEntry): string {

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 from image2prompt_shared.api_errors import ensure_ok
@@ -57,9 +57,35 @@ async def rotation_status(
 @audit.get("", response_model=list[AuditOut])
 def list_audit(
     limit: int = Query(default=100, le=500),
+    action: str | None = Query(default=None),
+    actor: str | None = Query(default=None),
+    days: int | None = Query(default=None, ge=1, le=3650),
     _=Depends(current_admin),
     db: Session = Depends(get_db),
     facade: IMaintenanceFacade = Depends(get_maintenance_facade),
 ):
-    resp = ensure_ok(facade.list_audit(ListAuditReq(db=db, limit=limit)))
+    resp = ensure_ok(
+        facade.list_audit(ListAuditReq(db=db, limit=limit, action=action, actor=actor, days=days))
+    )
     return [AuditOut.model_validate(e) for e in resp.entries]
+
+
+@audit.get("/export")
+def export_audit(
+    action: str | None = Query(default=None),
+    actor: str | None = Query(default=None),
+    days: int | None = Query(default=None, ge=1, le=3650),
+    _=Depends(current_admin),
+    db: Session = Depends(get_db),
+    facade: IMaintenanceFacade = Depends(get_maintenance_facade),
+):
+    """Download the (filtered) audit trail as newline-delimited JSON for archival/SIEM."""
+    resp = ensure_ok(
+        facade.list_audit(ListAuditReq(db=db, limit=10000, action=action, actor=actor, days=days))
+    )
+    body = "\n".join(AuditOut.model_validate(e).model_dump_json() for e in resp.entries)
+    return Response(
+        content=body,
+        media_type="application/x-ndjson",
+        headers={"Content-Disposition": 'attachment; filename="audit-log.ndjson"'},
+    )
