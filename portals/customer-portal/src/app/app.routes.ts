@@ -15,6 +15,7 @@ export const routes: Routes = [
       { path: 'connections', loadComponent: () => import('./pages/connections.component').then((m) => m.ConnectionsComponent) },
       { path: 'projects', loadComponent: () => import('./pages/projects.component').then((m) => m.ProjectsComponent) },
       { path: 'prompts', loadComponent: () => import('./pages/prompts.component').then((m) => m.PromptsComponent) },
+      { path: 'preferences', loadComponent: () => import('./pages/preferences.component').then((m) => m.PreferencesComponent) },
       { path: 'payment-settings', loadComponent: () => import('./pages/payment-settings.component').then((m) => m.PaymentSettingsComponent) },
       { path: 'billing', loadComponent: () => import('./pages/billing.component').then((m) => m.BillingComponent) },
     ],

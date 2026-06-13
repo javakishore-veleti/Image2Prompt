@@ -89,6 +89,7 @@ export class ShellComponent {
     { label: 'Connections', disabled: true },
     { label: 'Projects', link: '/projects' },
     { label: 'Prompts', link: '/prompts' },
+    { label: 'Preferences', link: '/preferences' },
     { label: 'Payment Settings', link: '/payment-settings' },
     { label: 'Billing & Receipts', link: '/billing' },
   ];

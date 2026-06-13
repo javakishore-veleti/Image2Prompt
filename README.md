@@ -179,8 +179,9 @@ libs/
   img2pmpt-caf-secret/       CAF secrets lib: client (ISecretClient) + provider_impls
                              (env / AWS / Azure / GCP), feature-toggled
 portals/
-  customer-portal/           Angular — Dashboard, Connections (disabled), Projects,
-                             Prompts, Payment Settings, Billing
+  customer-portal/           Angular — Dashboard (per-request provider pick),
+                             Connections (disabled), Projects, Prompts, Preferences
+                             (default providers + storage backend), Payment Settings, Billing
   admin-portal/              Angular — Dashboard, Customer Search/Listing/Endpoints,
                              Providers
 DevOps/Local/                postgres docker-compose + start/stop/status scripts
