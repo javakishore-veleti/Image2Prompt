@@ -30,6 +30,21 @@ on:
       db_password:
         description: DB master password (min 8 chars)
         default: image2prompt
+      openai_api_key:
+        description: OpenAI API key (optional)
+        default: ""
+      anthropic_api_key:
+        description: Anthropic API key (optional)
+        default: ""
+      google_api_key:
+        description: Google (Gemini) API key (optional)
+        default: ""
+      azure_openai_endpoint:
+        description: Azure OpenAI endpoint (optional)
+        default: ""
+      azure_openai_api_key:
+        description: Azure OpenAI API key (optional)
+        default: ""
       image_tag:
         description: Image tag to build and deploy
         default: latest
@@ -60,7 +75,14 @@ jobs:
         run: |
           aws cloudformation deploy --stack-name img2pmpt-secrets \
             --template-file DevOps/AWS/cloudformation/002-secrets.yaml \
-            --parameter-overrides AdminEmail="${{ inputs.admin_email }}" AdminPassword="${{ inputs.admin_password }}" \
+            --parameter-overrides \
+              AdminEmail="${{ inputs.admin_email }}" \
+              AdminPassword="${{ inputs.admin_password }}" \
+              OpenAiApiKey="${{ inputs.openai_api_key }}" \
+              AnthropicApiKey="${{ inputs.anthropic_api_key }}" \
+              GoogleApiKey="${{ inputs.google_api_key }}" \
+              AzureOpenAiEndpoint="${{ inputs.azure_openai_endpoint }}" \
+              AzureOpenAiApiKey="${{ inputs.azure_openai_api_key }}" \
             --no-fail-on-empty-changeset
 
       - name: 003 Database (+ patch DATABASE_URL)

@@ -101,6 +101,13 @@ For AWS, the secret named by `CAF_SECRET_AWS_SECRET_NAME` is a JSON object whose
 keys are the uppercase env names (`JWT_SECRET`, `DATABASE_URL`, …); Azure/GCP use
 one secret per key.
 
+**AI provider keys** follow the same path. Locally, set `OPENAI_API_KEY`,
+`ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, and `AZURE_OPENAI_*` in the root `.env`
+(see `.env.example`). In AWS they're passed as **inputs to `AWS_002_Setup_Secrets`**
+(or `AWS_1000_All_Setup`) and stored in the secret bundle — never committed. A
+blank key just leaves that provider returning an error envelope if invoked
+(bedrock + the framework providers use AWS creds; `mock` needs nothing).
+
 ## Quick start (local dev)
 
 Everything is orchestrated from the repo root via `npm run local:*` scripts
