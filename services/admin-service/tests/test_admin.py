@@ -488,6 +488,30 @@ def test_admin_cross_customer_activity(monkeypatch):
         assert client.get("/admin/customers/cust-xyz/activity").status_code == 401
 
 
+def test_admin_account_lockout(monkeypatch):
+    from app.config import settings as cfg
+
+    monkeypatch.setattr(cfg, "login_lockout_threshold", 3)
+    with TestClient(app) as client:
+        # use a dedicated admin so the seeded login account isn't locked for other tests
+        h = {"Authorization": f"Bearer {_login(client)}"}
+        client.post(
+            "/admin/users",
+            json={"email": "locktarget@image2prompt.io", "password": "pw123456", "role": "viewer"},
+            headers=h,
+        )
+        for _ in range(3):
+            r = client.post(
+                "/admin/auth/login", json={"email": "locktarget@image2prompt.io", "password": "wrong"}
+            )
+            assert r.status_code == 401
+        # locked: correct password now rejected with 423
+        r = client.post(
+            "/admin/auth/login", json={"email": "locktarget@image2prompt.io", "password": "pw123456"}
+        )
+        assert r.status_code == 423, r.text
+
+
 def test_login_rejects_bad_password():
     with TestClient(app) as client:
         r = client.post(

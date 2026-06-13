@@ -44,6 +44,12 @@ class ServiceSettings(BaseSettings):
     jwt_expire_minutes: int = 60  # short-lived access token (revocation via refresh denylist)
     jwt_refresh_expire_minutes: int = 60 * 24 * 30
 
+    # --- Account lockout: after this many failed logins within the window, the
+    # account is temporarily locked (auto-unlocks as old failures age out). 0
+    # disables. Driven off the audit trail. ---
+    login_lockout_threshold: int = 5
+    login_lockout_window_minutes: int = 15
+
     # --- Encryption at rest (e.g. stored OAuth tokens) ---
     # Empty => encryption disabled (values stored as-is). Set a long random
     # secret in cloud to encrypt sensitive columns. See image2prompt_shared.crypto.

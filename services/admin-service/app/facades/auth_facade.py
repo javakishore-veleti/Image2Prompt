@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+from datetime import timedelta
+
 import jwt
+
+from image2prompt_shared.base import utcnow
 
 from image2prompt_shared.layers import BaseFacade
 from image2prompt_shared.observability import Metrics, observe
@@ -42,10 +46,31 @@ class AdminAuthFacade(BaseFacade, IAdminAuthFacade):
     def login(self, req: AdminLoginReq) -> AdminAuthResp:
         result = self.admin_user_dao.get_by_email(GetAdminByEmailReq(db=req.db, email=req.email))
         admin = result.admin
+        # Account lockout: reject after too many recent failures (auto-unlocks).
+        if admin is not None and settings.login_lockout_threshold:
+            since = utcnow() - timedelta(minutes=settings.login_lockout_window_minutes)
+            fails = self.audit_dao.count_recent(
+                req.db, actor_id=admin.id, action="admin.login.failure", since=since
+            )
+            if fails >= settings.login_lockout_threshold:
+                Metrics.counter_add("admin.login.locked")
+                self.audit_dao.record(
+                    RecordAuditReq(
+                        db=req.db, action="admin.login.locked", actor_id=admin.id, actor_email=admin.email,
+                    )
+                )
+                req.db.commit()
+                return AdminAuthResp.failure(
+                    error_code="locked",
+                    error_message="Account temporarily locked after repeated failed sign-ins. Please try again later.",
+                )
         if admin is None or not verify_password(req.password, admin.password_hash):
             Metrics.counter_add("admin.login.failure")
             self.audit_dao.record(
-                RecordAuditReq(db=req.db, action="admin.login.failure", actor_email=req.email)
+                RecordAuditReq(
+                    db=req.db, action="admin.login.failure",
+                    actor_id=admin.id if admin else None, actor_email=req.email,
+                )
             )
             req.db.commit()
             return AdminAuthResp.failure(error_code="unauthorized", error_message="Invalid credentials")

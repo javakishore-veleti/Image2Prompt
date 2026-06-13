@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 
 from image2prompt_shared.base import utcnow
 from image2prompt_shared.dtos import BaseResp
@@ -14,6 +15,18 @@ from ..models import AuditLog
 
 
 class AuditDao(BaseDao):
+    def count_recent(self, db: Session, *, actor_id: str, action: str, since: datetime) -> int:
+        return int(
+            db.scalar(
+                select(func.count(AuditLog.id)).where(
+                    AuditLog.actor_id == actor_id,
+                    AuditLog.action == action,
+                    AuditLog.created_at >= since,
+                )
+            )
+            or 0
+        )
+
     @observe("AuditDao.record")
     def record(self, req: RecordAuditReq) -> BaseResp:
         # flush only — the caller commits within the same transaction as the action.

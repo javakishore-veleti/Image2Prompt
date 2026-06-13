@@ -17,6 +17,7 @@ ERROR_STATUS: dict[str, int] = {
     "no_providers": 400,
     "not_configured": 400,
     "unprocessable": 422,
+    "locked": 423,  # account temporarily locked (too many failed sign-ins)
     "upstream_error": 502,
     "internal": 500,
 }

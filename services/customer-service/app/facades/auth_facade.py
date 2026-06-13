@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+from datetime import timedelta
+
 import jwt
+
+from image2prompt_shared.base import utcnow
 
 from image2prompt_shared.layers import BaseFacade
 from image2prompt_shared.observability import Metrics, observe, set_span_attributes
@@ -105,6 +109,21 @@ class AuthFacade(BaseFacade, IAuthFacade):
     def login(self, req: LoginReq) -> AuthResp:
         result = self.customer_dao.get_by_email(GetByEmailReq(db=req.db, email=req.email))
         customer = result.customer
+        # Account lockout: too many recent failures => reject without checking the
+        # password (auto-unlocks as failures age out of the window).
+        if customer is not None and settings.login_lockout_threshold:
+            since = utcnow() - timedelta(minutes=settings.login_lockout_window_minutes)
+            fails = self.audit_dao.count_recent(
+                req.db, actor_id=customer.id, action="customer.login.failure", since=since
+            )
+            if fails >= settings.login_lockout_threshold:
+                Metrics.counter_add("customer.login.locked")
+                self._audit(req.db, "customer.login.locked", actor_id=customer.id, actor_email=customer.email)
+                req.db.commit()
+                return AuthResp.failure(
+                    error_code="locked",
+                    error_message="Account temporarily locked after repeated failed sign-ins. Please try again later.",
+                )
         if customer is None or not verify_password(req.password, customer.password_hash):
             Metrics.counter_add("customer.login.failure")
             self._audit(

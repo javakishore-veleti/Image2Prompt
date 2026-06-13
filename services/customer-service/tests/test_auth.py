@@ -371,6 +371,23 @@ def test_account_activity_records_security_events():
         assert not any(a["action"] in ("connection.connect", "connection.disconnect") for a in other_acts)
 
 
+def test_account_lockout_after_repeated_failures(monkeypatch):
+    from app.config import settings as cfg
+
+    monkeypatch.setattr(cfg, "login_lockout_threshold", 3)
+    with TestClient(app) as client:
+        client.post("/auth/signup", json={"email": "lock@example.com", "password": "pw123456"})
+        for _ in range(3):
+            r = client.post("/auth/login", json={"email": "lock@example.com", "password": "wrong"})
+            assert r.status_code == 401
+        # now locked — even the correct password is rejected with 423
+        r = client.post("/auth/login", json={"email": "lock@example.com", "password": "pw123456"})
+        assert r.status_code == 423, r.text
+        # the lockout is recorded in the customer's activity
+        # (sign in elsewhere is impossible; check via a fresh token isn't available,
+        #  so just confirm the lock response carried the right code)
+
+
 def test_internal_customer_activity_and_pagination():
     with TestClient(app) as client:
         s = client.post(

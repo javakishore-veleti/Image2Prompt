@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from sqlalchemy import func, or_, select
+from sqlalchemy.orm import Session
 
 from image2prompt_shared.dtos import BaseResp
 from image2prompt_shared.layers import BaseDao
@@ -28,6 +31,18 @@ class AuditDao(BaseDao):
             "audit action=%s actor=%s target=%s", req.action, req.actor_email or "-", req.target or "-"
         )
         return BaseResp()
+
+    def count_recent(self, db: Session, *, actor_id: str, action: str, since: datetime) -> int:
+        return int(
+            db.scalar(
+                select(func.count(AuditLog.id)).where(
+                    AuditLog.actor_id == actor_id,
+                    AuditLog.action == action,
+                    AuditLog.created_at >= since,
+                )
+            )
+            or 0
+        )
 
     @observe("AuditDao.list_for_customer")
     def list_for_customer(self, req: ListActivityReq) -> ActivityListResp:
