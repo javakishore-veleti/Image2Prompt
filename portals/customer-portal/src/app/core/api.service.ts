@@ -72,9 +72,15 @@ export class ApiService {
     return this.http.put<Preferences>(`${this.customer}/me/preferences`, body);
   }
 
-  // --- Payments / billing (stub) ---
+  // --- Payments / billing (Stripe) ---
   paymentSettings(): Observable<any> {
     return this.http.get(`${this.customer}/me/payment-settings`);
+  }
+  createSetupIntent(): Observable<{ configured: boolean; client_secret: string | null }> {
+    return this.http.post<{ configured: boolean; client_secret: string | null }>(
+      `${this.customer}/me/payment-settings/setup-intent`,
+      {},
+    );
   }
   billing(): Observable<any> {
     return this.http.get(`${this.customer}/me/billing`);

@@ -27,6 +27,7 @@ from .facades.payments_facade import PaymentsFacade
 from .facades.profile_facade import ProfileFacade
 from .facades.projects_facade import ProjectsFacade
 from .services.connection_provider_service import ConnectionProviderService
+from .services.stripe_service import StripeService
 from .services.token_service import TokenService
 
 # --- DAOs ---
@@ -39,6 +40,7 @@ _connection_dao = ConnectionDao()
 # --- Services ---
 _token_service = TokenService()
 _connection_provider_service = ConnectionProviderService()
+_stripe_service = StripeService()
 
 # --- Facades (wired against interfaces) ---
 _auth_facade: IAuthFacade = AuthFacade(
@@ -48,7 +50,9 @@ _profile_facade: IProfileFacade = ProfileFacade(
     customer_dao=_customer_dao, preference_dao=_preference_dao
 )
 _projects_facade: IProjectsFacade = ProjectsFacade(project_dao=_project_dao)
-_payments_facade: IPaymentsFacade = PaymentsFacade(payment_dao=_payment_dao)
+_payments_facade: IPaymentsFacade = PaymentsFacade(
+    payment_dao=_payment_dao, customer_dao=_customer_dao, stripe_service=_stripe_service
+)
 _internal_facade: IInternalFacade = InternalFacade(
     customer_dao=_customer_dao, preference_dao=_preference_dao
 )

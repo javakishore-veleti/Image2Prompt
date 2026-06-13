@@ -46,6 +46,9 @@ class IPaymentsFacade(ABC):
     def update_settings(self, req: "dto.UpdatePaymentReq") -> "dto.PaymentResp": ...
 
     @abstractmethod
+    def create_setup_intent(self, req: "dto.SetupIntentReq") -> "dto.SetupIntentResp": ...
+
+    @abstractmethod
     def get_billing(self, req: "dto.BillingReq") -> "dto.BillingResp": ...
 
 

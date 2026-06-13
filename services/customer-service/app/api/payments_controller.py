@@ -8,21 +8,26 @@ from image2prompt_shared.auth_dep import Principal
 
 from ..deps import current_customer, get_db
 from ..di import get_payments_facade
-from ..dtos.internal_dtos import BillingReq, GetPaymentReq, UpdatePaymentReq
+from ..dtos.internal_dtos import BillingReq, GetPaymentReq, SetupIntentReq, UpdatePaymentReq
 from ..facades.interfaces import IPaymentsFacade
 from ..schemas import PaymentSettingsOut, PaymentSettingsUpdate
 
 router = APIRouter(prefix="/me", tags=["payments"])
 
 
-@router.get("/payment-settings", response_model=PaymentSettingsOut)
+@router.get("/payment-settings")
 def get_payment_settings(
     principal: Principal = Depends(current_customer),
     db: Session = Depends(get_db),
     facade: IPaymentsFacade = Depends(get_payments_facade),
 ):
     resp = ensure_ok(facade.get_settings(GetPaymentReq(db=db, customer_id=principal.id)))
-    return resp.settings
+    return {
+        "customer_id": principal.id,
+        "data": resp.settings.data if resp.settings else {},
+        "stripe_configured": resp.configured,
+        "stripe_customer_id": resp.stripe_customer_id,
+    }
 
 
 @router.put("/payment-settings", response_model=PaymentSettingsOut)
@@ -38,14 +43,26 @@ def update_payment_settings(
     return resp.settings
 
 
+@router.post("/payment-settings/setup-intent")
+def create_setup_intent(
+    principal: Principal = Depends(current_customer),
+    db: Session = Depends(get_db),
+    facade: IPaymentsFacade = Depends(get_payments_facade),
+):
+    resp = ensure_ok(facade.create_setup_intent(SetupIntentReq(db=db, customer_id=principal.id)))
+    return {"configured": resp.configured, "client_secret": resp.client_secret}
+
+
 @router.get("/billing")
 def get_billing(
     principal: Principal = Depends(current_customer),
+    db: Session = Depends(get_db),
     facade: IPaymentsFacade = Depends(get_payments_facade),
 ):
-    resp = ensure_ok(facade.get_billing(BillingReq(customer_id=principal.id)))
+    resp = ensure_ok(facade.get_billing(BillingReq(db=db, customer_id=principal.id)))
     return {
         "customer_id": principal.id,
+        "configured": resp.configured,
         "receipts": resp.receipts,
         "balance_due": resp.balance_due,
         "currency": resp.currency,

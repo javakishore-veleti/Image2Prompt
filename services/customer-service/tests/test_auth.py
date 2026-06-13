@@ -84,3 +84,21 @@ def test_connections_flow():
         # disconnect
         assert client.delete(f"/me/connections/{conn['id']}", headers=h).status_code == 204
         assert client.get("/me/connections", headers=h).json() == []
+
+
+def test_billing_without_stripe_is_graceful():
+    with TestClient(app) as client:
+        tok = client.post(
+            "/auth/signup", json={"email": "bill@example.com", "password": "pw123456"}
+        ).json()["access_token"]
+        h = {"Authorization": f"Bearer {tok}"}
+
+        ps = client.get("/me/payment-settings", headers=h).json()
+        assert ps["stripe_configured"] is False  # no STRIPE_API_KEY in tests
+
+        billing = client.get("/me/billing", headers=h).json()
+        assert billing["configured"] is False
+        assert billing["receipts"] == []
+
+        si = client.post("/me/payment-settings/setup-intent", headers=h).json()
+        assert si["configured"] is False and si["client_secret"] is None

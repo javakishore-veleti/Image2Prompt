@@ -148,18 +148,34 @@ class UpdatePaymentReq(BaseReq):
 @dataclass(kw_only=True)
 class PaymentResp(BaseResp):
     settings: Optional[PaymentSettings] = None
+    configured: bool = False
+    stripe_customer_id: Optional[str] = None
+
+
+@dataclass(kw_only=True)
+class SetupIntentReq(BaseReq):
+    db: Session
+    customer_id: str
+
+
+@dataclass(kw_only=True)
+class SetupIntentResp(BaseResp):
+    configured: bool = False
+    client_secret: Optional[str] = None
 
 
 @dataclass(kw_only=True)
 class BillingReq(BaseReq):
+    db: Session
     customer_id: str
 
 
 @dataclass(kw_only=True)
 class BillingResp(BaseResp):
+    configured: bool = False
     receipts: list = field(default_factory=list)
     balance_due: float = 0.0
-    currency: str = "USD"
+    currency: str = "usd"
 
 
 # --- connections (external file systems; mock OAuth for now) ---
