@@ -1,0 +1,60 @@
+name: CI
+
+# Manual trigger only — run from the Actions tab ("Run workflow").
+on:
+  workflow_dispatch:
+    inputs:
+      run_portal_build:
+        description: "Also build the Angular portals (slower)"
+        type: boolean
+        default: true
+
+jobs:
+  python-tests:
+    name: Python tests (services + CAF)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ./services/shared ./libs/img2pmpt-caf-secret
+          pip install pytest httpx email-validator boto3
+
+      - name: Run all test suites (SQLite-backed, no Postgres needed)
+        run: |
+          set -e
+          for svc in customer-service admin-service ai-adapters image-processing-service; do
+            echo "::group::$svc"
+            (cd "services/$svc" && python -m pytest -q)
+            echo "::endgroup::"
+          done
+          echo "::group::img2pmpt-caf-secret"
+          (cd libs/img2pmpt-caf-secret && python -m pytest -q)
+          echo "::endgroup::"
+
+  portal-build:
+    name: Build Angular portals
+    if: ${{ inputs.run_portal_build }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        portal: [customer-portal, admin-portal]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install & build ${{ matrix.portal }}
+        working-directory: portals/${{ matrix.portal }}
+        run: |
+          npm install
+          npm run build
