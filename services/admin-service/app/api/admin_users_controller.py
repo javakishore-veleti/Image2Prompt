@@ -8,7 +8,13 @@ from image2prompt_shared.auth_dep import Principal
 
 from ..deps import get_db, superadmin_only
 from ..di import get_admin_users_facade
-from ..dtos.internal_dtos import CreateAdminReq, DeleteAdminReq, ListAdminsReq, UpdateAdminReq
+from ..dtos.internal_dtos import (
+    CreateAdminReq,
+    DeleteAdminReq,
+    ListAdminsReq,
+    UnlockAdminReq,
+    UpdateAdminReq,
+)
 from ..facades.interfaces import IAdminUsersFacade
 from ..schemas import AdminUserCreate, AdminUserOut, AdminUserUpdate
 
@@ -72,3 +78,18 @@ def delete_admin(
             DeleteAdminReq(db=db, admin_id=admin_id, actor_id=principal.id, actor_email=principal.email)
         )
     )
+
+
+@router.post("/{admin_id}/unlock")
+def unlock_admin(
+    admin_id: str,
+    principal: Principal = Depends(superadmin_only),
+    db: Session = Depends(get_db),
+    facade: IAdminUsersFacade = Depends(get_admin_users_facade),
+):
+    resp = ensure_ok(
+        facade.unlock_admin(
+            UnlockAdminReq(db=db, admin_id=admin_id, actor_id=principal.id, actor_email=principal.email)
+        )
+    )
+    return {"message": resp.message}

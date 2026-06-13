@@ -40,6 +40,7 @@ import { AuthService } from '../core/auth.service';
               </select>
             </td>
             <td>
+              <button class="ghost" (click)="unlock(a)">Unlock</button>
               <button class="ghost" (click)="remove(a)" [disabled]="a.email === auth.email()">
                 Delete
               </button>
@@ -99,5 +100,9 @@ export class AdminsComponent {
 
   remove(a: any): void {
     this.api.deleteAdmin(a.id).subscribe({ next: () => this.load(), error: () => {} });
+  }
+
+  unlock(a: any): void {
+    this.api.unlockAdmin(a.id).subscribe({ next: () => {}, error: () => {} });
   }
 }

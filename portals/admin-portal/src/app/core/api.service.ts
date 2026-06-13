@@ -67,6 +67,12 @@ export class ApiService {
   customerActivity(customerId: string): Observable<AuditEntry[]> {
     return this.http.get<AuditEntry[]>(`${this.admin}/customers/${customerId}/activity`);
   }
+  unlockCustomer(customerId: string): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${this.admin}/customers/${customerId}/unlock`, {});
+  }
+  unlockAdmin(id: string): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(`${this.admin}/users/${id}/unlock`, {});
+  }
 
   analytics(): Observable<any> {
     return this.http.get(`${this.admin}/analytics`);

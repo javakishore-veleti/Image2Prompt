@@ -176,6 +176,27 @@ class CustomerActivityResp(BaseResp):
     entries: list = field(default_factory=list)
 
 
+@dataclass(kw_only=True)
+class UnlockCustomerReq(BaseReq):
+    db: Session
+    customer_id: str
+    actor_id: Optional[str] = None
+    actor_email: Optional[str] = None
+
+
+@dataclass(kw_only=True)
+class UnlockAdminReq(BaseReq):
+    db: Session
+    admin_id: str
+    actor_id: Optional[str] = None
+    actor_email: Optional[str] = None
+
+
+@dataclass(kw_only=True)
+class UnlockResp(BaseResp):
+    message: str = ""
+
+
 # --- csp violations ---
 @dataclass(kw_only=True)
 class IngestViolationReq(BaseReq):

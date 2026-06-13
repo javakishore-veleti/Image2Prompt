@@ -17,6 +17,7 @@ from ..dtos.internal_dtos import (
     ReencryptTokensReq,
     RotationStatusReq,
     SearchCustomersReq,
+    UnlockAccountReq,
 )
 from ..facades.interfaces import IConnectionsFacade, IInternalFacade, IProfileFacade
 from ..schemas import ActivityOut, ConnectionOut, CustomerOut, PreferenceOut
@@ -111,6 +112,17 @@ def get_customer_activity(
         facade.list_activity(ListActivityReq(db=db, customer_id=customer_id, limit=limit, offset=offset))
     )
     return [ActivityOut.model_validate(e) for e in resp.entries]
+
+
+@router.post("/{customer_id}/unlock")
+def unlock_customer(
+    customer_id: str,
+    db: Session = Depends(get_db),
+    facade: IProfileFacade = Depends(get_profile_facade),
+):
+    # Admin-triggered (over the trusted network) release of a locked account.
+    resp = ensure_ok(facade.unlock_account(UnlockAccountReq(db=db, customer_id=customer_id)))
+    return {"message": resp.message}
 
 
 @router.get("/{customer_id}/connections/{connection_id}/files/{file_id}/content")

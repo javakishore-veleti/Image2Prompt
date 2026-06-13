@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import timedelta, timezone
 
 import jwt
 
@@ -113,6 +113,15 @@ class AuthFacade(BaseFacade, IAuthFacade):
         # password (auto-unlocks as failures age out of the window).
         if customer is not None and settings.login_lockout_threshold:
             since = utcnow() - timedelta(minutes=settings.login_lockout_window_minutes)
+            # An admin unlock resets the floor so only failures after it count.
+            last_unlock = self.audit_dao.last_event_at(
+                req.db, actor_id=customer.id, action="customer.login.unlock"
+            )
+            if last_unlock is not None:
+                if last_unlock.tzinfo is None:
+                    last_unlock = last_unlock.replace(tzinfo=timezone.utc)
+                if last_unlock > since:
+                    since = last_unlock
             fails = self.audit_dao.count_recent(
                 req.db, actor_id=customer.id, action="customer.login.failure", since=since
             )

@@ -47,6 +47,9 @@ class IProfileFacade(ABC):
     @abstractmethod
     def list_activity(self, req: "dto.ListActivityReq") -> "dto.ActivityListResp": ...
 
+    @abstractmethod
+    def unlock_account(self, req: "dto.UnlockAccountReq") -> "dto.MessageResp": ...
+
 
 class IProjectsFacade(ABC):
     @abstractmethod

@@ -12,7 +12,10 @@ from ..dtos.internal_dtos import (
     GetByIdReq,
     GetPrefsReq,
     ListActivityReq,
+    MessageResp,
     PrefsResp,
+    RecordAuditReq,
+    UnlockAccountReq,
     UpdatePrefsReq,
 )
 from .interfaces import IProfileFacade
@@ -30,6 +33,22 @@ class ProfileFacade(BaseFacade, IProfileFacade):
     @observe("ProfileFacade.list_activity")
     def list_activity(self, req: ListActivityReq) -> ActivityListResp:
         return self.audit_dao.list_for_customer(req)
+
+    @observe("ProfileFacade.unlock_account", metric="customer.account.unlock")
+    def unlock_account(self, req: UnlockAccountReq) -> MessageResp:
+        cust = self.customer_dao.get_by_id(GetByIdReq(db=req.db, customer_id=req.customer_id)).customer
+        if cust is None:
+            return MessageResp.failure(error_code="not_found", error_message="Customer not found")
+        # An unlock event resets the failure floor (audit is append-only, so we
+        # never delete the recorded failures).
+        self.audit_dao.record(
+            RecordAuditReq(
+                db=req.db, action="customer.login.unlock", actor_id=cust.id,
+                actor_email=cust.email, detail={"by": "admin"},
+            )
+        )
+        req.db.commit()
+        return MessageResp(message="Account unlocked.")
 
     @observe("ProfileFacade.get_me")
     def get_me(self, req: GetByIdReq) -> CustomerResp:

@@ -6,6 +6,8 @@ from image2prompt_shared.layers import BaseService
 from image2prompt_shared.observability import observe
 
 from ..config import settings
+from image2prompt_shared.dtos import BaseResp
+
 from ..dtos.internal_dtos import (
     CustomerActivityResp,
     CustomerConnectionsResp,
@@ -58,5 +60,18 @@ class CustomerDirectoryService(BaseService):
                 return CustomerActivityResp(entries=resp.json())
         except httpx.HTTPError as exc:
             return CustomerActivityResp.failure(
+                error_code="upstream_error", error_message=f"customer-service unavailable: {exc}"
+            )
+
+    @observe("CustomerDirectoryService.unlock_customer")
+    async def unlock_customer(self, customer_id: str) -> BaseResp:
+        url = f"{settings.customer_service_url}/internal/customers/{customer_id}/unlock"
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(url)
+                resp.raise_for_status()
+                return BaseResp()
+        except httpx.HTTPError as exc:
+            return BaseResp.failure(
                 error_code="upstream_error", error_message=f"customer-service unavailable: {exc}"
             )

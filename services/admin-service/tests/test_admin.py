@@ -512,6 +512,31 @@ def test_admin_account_lockout(monkeypatch):
         assert r.status_code == 423, r.text
 
 
+def test_superadmin_unlock_clears_admin_lockout(monkeypatch):
+    from app.config import settings as cfg
+
+    monkeypatch.setattr(cfg, "login_lockout_threshold", 3)
+    with TestClient(app) as client:
+        h = {"Authorization": f"Bearer {_login(client)}"}
+        new = client.post(
+            "/admin/users",
+            json={"email": "unlockadmin@image2prompt.io", "password": "pw123456", "role": "viewer"},
+            headers=h,
+        ).json()
+        for _ in range(3):
+            assert client.post(
+                "/admin/auth/login", json={"email": "unlockadmin@image2prompt.io", "password": "x"}
+            ).status_code == 401
+        assert client.post(
+            "/admin/auth/login", json={"email": "unlockadmin@image2prompt.io", "password": "pw123456"}
+        ).status_code == 423
+        # superadmin releases the lock
+        assert client.post(f"/admin/users/{new['id']}/unlock", headers=h).status_code == 200
+        assert client.post(
+            "/admin/auth/login", json={"email": "unlockadmin@image2prompt.io", "password": "pw123456"}
+        ).status_code == 200
+
+
 def test_login_rejects_bad_password():
     with TestClient(app) as client:
         r = client.post(

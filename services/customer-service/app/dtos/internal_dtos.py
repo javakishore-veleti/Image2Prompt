@@ -109,6 +109,12 @@ class ListActivityReq(BaseReq):
 
 
 @dataclass(kw_only=True)
+class UnlockAccountReq(BaseReq):
+    db: Session
+    customer_id: str
+
+
+@dataclass(kw_only=True)
 class ActivityListResp(BaseResp):
     entries: list[AuditLog] = field(default_factory=list)
     total: int = 0

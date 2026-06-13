@@ -388,6 +388,31 @@ def test_account_lockout_after_repeated_failures(monkeypatch):
         #  so just confirm the lock response carried the right code)
 
 
+def test_admin_unlock_clears_customer_lockout(monkeypatch):
+    from app.config import settings as cfg
+
+    monkeypatch.setattr(cfg, "login_lockout_threshold", 3)
+    with TestClient(app) as client:
+        s = client.post(
+            "/auth/signup", json={"email": "unlockme@example.com", "password": "pw123456"}
+        ).json()
+        cid = s["customer_id"]
+        for _ in range(3):
+            assert client.post(
+                "/auth/login", json={"email": "unlockme@example.com", "password": "x"}
+            ).status_code == 401
+        # locked
+        assert client.post(
+            "/auth/login", json={"email": "unlockme@example.com", "password": "pw123456"}
+        ).status_code == 423
+        # admin releases the lock over the trusted network
+        assert client.post(f"/internal/customers/{cid}/unlock").status_code == 200
+        # login works again
+        assert client.post(
+            "/auth/login", json={"email": "unlockme@example.com", "password": "pw123456"}
+        ).status_code == 200
+
+
 def test_internal_customer_activity_and_pagination():
     with TestClient(app) as client:
         s = client.post(

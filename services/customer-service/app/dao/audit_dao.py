@@ -44,6 +44,13 @@ class AuditDao(BaseDao):
             or 0
         )
 
+    def last_event_at(self, db: Session, *, actor_id: str, action: str) -> datetime | None:
+        return db.scalar(
+            select(func.max(AuditLog.created_at)).where(
+                AuditLog.actor_id == actor_id, AuditLog.action == action
+            )
+        )
+
     @observe("AuditDao.list_for_customer")
     def list_for_customer(self, req: ListActivityReq) -> ActivityListResp:
         # A customer sees activity attributed to their id, plus (for self-view)

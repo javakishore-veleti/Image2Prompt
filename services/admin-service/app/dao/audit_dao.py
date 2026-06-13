@@ -27,6 +27,13 @@ class AuditDao(BaseDao):
             or 0
         )
 
+    def last_event_at(self, db: Session, *, actor_id: str, action: str) -> datetime | None:
+        return db.scalar(
+            select(func.max(AuditLog.created_at)).where(
+                AuditLog.actor_id == actor_id, AuditLog.action == action
+            )
+        )
+
     @observe("AuditDao.record")
     def record(self, req: RecordAuditReq) -> BaseResp:
         # flush only — the caller commits within the same transaction as the action.

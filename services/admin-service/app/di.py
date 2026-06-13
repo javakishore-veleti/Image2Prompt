@@ -51,7 +51,9 @@ _auth_facade: IAdminAuthFacade = AdminAuthFacade(
 _providers_facade: IProvidersFacade = ProvidersFacade(
     provider_dao=_provider_dao, audit_dao=_audit_dao
 )
-_customers_facade: ICustomersFacade = CustomersFacade(directory_service=_directory_service)
+_customers_facade: ICustomersFacade = CustomersFacade(
+    directory_service=_directory_service, audit_dao=_audit_dao
+)
 _analytics_facade: IAnalyticsFacade = AnalyticsFacade(
     provider_dao=_provider_dao,
     analytics_service=_analytics_service,

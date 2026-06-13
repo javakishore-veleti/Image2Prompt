@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import timedelta, timezone
 
 import jwt
 
@@ -49,6 +49,14 @@ class AdminAuthFacade(BaseFacade, IAdminAuthFacade):
         # Account lockout: reject after too many recent failures (auto-unlocks).
         if admin is not None and settings.login_lockout_threshold:
             since = utcnow() - timedelta(minutes=settings.login_lockout_window_minutes)
+            last_unlock = self.audit_dao.last_event_at(
+                req.db, actor_id=admin.id, action="admin.login.unlock"
+            )
+            if last_unlock is not None:
+                if last_unlock.tzinfo is None:
+                    last_unlock = last_unlock.replace(tzinfo=timezone.utc)
+                if last_unlock > since:
+                    since = last_unlock
             fails = self.audit_dao.count_recent(
                 req.db, actor_id=admin.id, action="admin.login.failure", since=since
             )

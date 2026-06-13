@@ -12,6 +12,8 @@ from ..dtos.internal_dtos import (
     DeleteAdminReq,
     ListAdminsReq,
     RecordAuditReq,
+    UnlockAdminReq,
+    UnlockResp,
     UpdateAdminReq,
 )
 from .interfaces import IAdminUsersFacade
@@ -67,6 +69,19 @@ class AdminUsersFacade(BaseFacade, IAdminUsersFacade):
             )
             req.db.commit()
         return resp
+
+    @observe("AdminUsersFacade.unlock_admin", metric="admin.user.unlock")
+    def unlock_admin(self, req: UnlockAdminReq) -> UnlockResp:
+        # Reset the lockout floor for the target admin, and log who did it.
+        self.audit_dao.record(RecordAuditReq(db=req.db, action="admin.login.unlock", actor_id=req.admin_id))
+        self.audit_dao.record(
+            RecordAuditReq(
+                db=req.db, action="admin_user.unlock", actor_id=req.actor_id,
+                actor_email=req.actor_email, target=req.admin_id,
+            )
+        )
+        req.db.commit()
+        return UnlockResp(message="Admin account unlocked.")
 
     @observe("AdminUsersFacade.delete_admin")
     def delete_admin(self, req: DeleteAdminReq) -> AdminUserResp:

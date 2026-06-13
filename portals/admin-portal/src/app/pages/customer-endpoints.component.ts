@@ -21,8 +21,10 @@ import { ApiService, AuditEntry, Customer } from '../core/api.service';
         <span class="actions">
           <button class="ghost" (click)="view(c)">View endpoints</button>
           <button class="ghost" (click)="viewActivity(c)">View activity</button>
+          <button class="ghost" (click)="unlock(c)" [disabled]="busy() === c.id">Unlock</button>
         </span>
       </div>
+      <p class="ok small" *ngIf="msg()[c.id]">{{ msg()[c.id] }}</p>
       <table *ngIf="connections()[c.id]">
         <thead><tr><th>Provider</th><th>Account</th><th>Status</th></tr></thead>
         <tbody>
@@ -70,6 +72,8 @@ export class CustomerEndpointsComponent {
   customers = signal<Customer[]>([]);
   connections = signal<Record<string, any[]>>({});
   activity = signal<Record<string, AuditEntry[]>>({});
+  busy = signal<string | null>(null);
+  msg = signal<Record<string, string>>({});
 
   search(): void {
     this.api.customers(this.term.trim() || undefined).subscribe({
@@ -92,6 +96,20 @@ export class CustomerEndpointsComponent {
     this.api.customerActivity(c.id).subscribe({
       next: (acts) => this.activity.update((m) => ({ ...m, [c.id]: acts })),
       error: () => this.activity.update((m) => ({ ...m, [c.id]: [] })),
+    });
+  }
+
+  unlock(c: Customer): void {
+    this.busy.set(c.id);
+    this.api.unlockCustomer(c.id).subscribe({
+      next: (r) => {
+        this.busy.set(null);
+        this.msg.update((m) => ({ ...m, [c.id]: r.message }));
+      },
+      error: () => {
+        this.busy.set(null);
+        this.msg.update((m) => ({ ...m, [c.id]: 'Unlock failed.' }));
+      },
     });
   }
 }

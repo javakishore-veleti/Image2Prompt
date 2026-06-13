@@ -31,6 +31,9 @@ class IAdminUsersFacade(ABC):
     @abstractmethod
     def delete_admin(self, req: "dto.DeleteAdminReq") -> "dto.AdminUserResp": ...
 
+    @abstractmethod
+    def unlock_admin(self, req: "dto.UnlockAdminReq") -> "dto.UnlockResp": ...
+
 
 class IProvidersFacade(ABC):
     @abstractmethod
@@ -79,3 +82,6 @@ class ICustomersFacade(ABC):
 
     @abstractmethod
     async def get_activity(self, req: "dto.GetCustomerActivityReq") -> "dto.CustomerActivityResp": ...
+
+    @abstractmethod
+    async def unlock_customer(self, req: "dto.UnlockCustomerReq") -> "dto.UnlockResp": ...
