@@ -7,11 +7,33 @@ containers with only env differences.
 
 from __future__ import annotations
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
+
+from .config_sources import CafSecretsSettingsSource
 
 
 class ServiceSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        # Priority (high -> low): init args, env vars, .env file, CAF secret store,
+        # file secrets. So explicit env still overrides; cloud secrets fill the
+        # rest when CAF_SECRET_PROVIDER is aws/azure/gcp (no-op otherwise).
+        return (
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            CafSecretsSettingsSource(settings_cls),
+            file_secret_settings,
+        )
 
     # --- Identity ---
     service_name: str = "service"
