@@ -39,6 +39,17 @@ class RefreshReq(BaseReq):
 
 
 @dataclass(kw_only=True)
+class LogoutReq(BaseReq):
+    db: Session
+    refresh_token: str
+
+
+@dataclass(kw_only=True)
+class LogoutResp(BaseResp):
+    pass
+
+
+@dataclass(kw_only=True)
 class AuthResp(BaseResp):
     access_token: Optional[str] = None
     refresh_token: Optional[str] = None

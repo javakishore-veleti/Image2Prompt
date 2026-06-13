@@ -6,6 +6,7 @@ The JWT carries ``sub`` (subject id), ``typ`` ("customer" | "admin"), and
 
 from __future__ import annotations
 
+import uuid
 from datetime import timedelta
 from typing import Any
 
@@ -46,6 +47,7 @@ def create_access_token(
         "sub": subject,
         "typ": token_type,
         "email": email,
+        "jti": str(uuid.uuid4()),
         "iat": now,
         "exp": now + timedelta(minutes=expire_minutes),
     }

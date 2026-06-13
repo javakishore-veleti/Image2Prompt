@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from .dao.admin_user_dao import AdminUserDao
 from .dao.provider_dao import ProviderDao
+from .dao.revoked_token_dao import RevokedTokenDao
 from .facades.analytics_facade import AnalyticsFacade
 from .facades.auth_facade import AdminAuthFacade
 from .facades.customers_facade import CustomersFacade
@@ -21,6 +22,7 @@ from .services.token_service import AdminTokenService
 # DAOs
 _admin_user_dao = AdminUserDao()
 _provider_dao = ProviderDao()
+_revoked_token_dao = RevokedTokenDao()
 
 # Services
 _token_service = AdminTokenService()
@@ -29,7 +31,7 @@ _analytics_service = AnalyticsService()
 
 # Facades (wired against interfaces)
 _auth_facade: IAdminAuthFacade = AdminAuthFacade(
-    admin_user_dao=_admin_user_dao, token_service=_token_service
+    admin_user_dao=_admin_user_dao, token_service=_token_service, revoked_token_dao=_revoked_token_dao
 )
 _providers_facade: IProvidersFacade = ProvidersFacade(provider_dao=_provider_dao)
 _customers_facade: ICustomersFacade = CustomersFacade(directory_service=_directory_service)

@@ -9,6 +9,7 @@ from image2prompt_shared.security import decode_token, hash_password, verify_pas
 from ..config import settings
 from ..dao.customer_dao import CustomerDao
 from ..dao.preference_dao import PreferenceDao
+from ..dao.revoked_token_dao import IsRevokedReq, RevokedTokenDao, RevokeReq
 from ..dtos.internal_dtos import (
     AuthResp,
     CreateCustomerReq,
@@ -16,6 +17,8 @@ from ..dtos.internal_dtos import (
     GetByIdReq,
     GetPrefsReq,
     LoginReq,
+    LogoutReq,
+    LogoutResp,
     RefreshReq,
     SignupReq,
 )
@@ -32,11 +35,13 @@ class AuthFacade(BaseFacade, IAuthFacade):
         customer_dao: CustomerDao,
         preference_dao: PreferenceDao,
         token_service: TokenService,
+        revoked_token_dao: RevokedTokenDao,
     ) -> None:
         super().__init__()
         self.customer_dao = customer_dao
         self.preference_dao = preference_dao
         self.token_service = token_service
+        self.revoked_token_dao = revoked_token_dao
 
     @observe("AuthFacade.signup", metric="customer.signup")
     def signup(self, req: SignupReq) -> AuthResp:
@@ -88,13 +93,39 @@ class AuthFacade(BaseFacade, IAuthFacade):
             return AuthResp.failure(error_code="unauthorized", error_message="Invalid refresh token")
         if claims.get("typ") != "refresh":
             return AuthResp.failure(error_code="unauthorized", error_message="Not a refresh token")
+        jti = claims.get("jti", "")
+        if self.revoked_token_dao.is_revoked(IsRevokedReq(db=req.db, jti=jti)).revoked:
+            # Reuse of an already-rotated/revoked refresh token.
+            return AuthResp.failure(error_code="unauthorized", error_message="Refresh token revoked")
         customer = self.customer_dao.get_by_id(
             GetByIdReq(db=req.db, customer_id=claims.get("sub", ""))
         ).customer
         if customer is None:
             return AuthResp.failure(error_code="unauthorized", error_message="Unknown customer")
+        # Rotate: revoke the presented refresh token, then issue a fresh pair.
+        self.revoked_token_dao.revoke(
+            RevokeReq(db=req.db, jti=jti, expires_at=int(claims.get("exp", 0)), reason="rotated")
+        )
         tok = self.token_service.issue(IssueTokenReq(customer_id=customer.id, email=customer.email))
+        req.db.commit()
         return AuthResp(
             access_token=tok.access_token, refresh_token=tok.refresh_token,
             customer_id=customer.id, email=customer.email,
         )
+
+    @observe("AuthFacade.logout", metric="customer.logout")
+    def logout(self, req: LogoutReq) -> LogoutResp:
+        try:
+            claims = decode_token(
+                req.refresh_token, secret=settings.jwt_secret, algorithm=settings.jwt_algorithm,
+            )
+        except jwt.PyJWTError:
+            return LogoutResp()  # already invalid/expired — nothing to revoke
+        self.revoked_token_dao.revoke(
+            RevokeReq(
+                db=req.db, jti=claims.get("jti", ""),
+                expires_at=int(claims.get("exp", 0)), reason="logout",
+            )
+        )
+        req.db.commit()
+        return LogoutResp()

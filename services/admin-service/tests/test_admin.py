@@ -63,3 +63,12 @@ def test_admin_refresh_flow():
         assert r.status_code == 200 and r.json()["access_token"]
         bad = client.post("/admin/auth/refresh", json={"refresh_token": login["access_token"]})
         assert bad.status_code == 401
+
+
+def test_admin_logout_revokes_refresh():
+    with TestClient(app) as client:
+        login = client.post(
+            "/admin/auth/login", json={"email": "admin@test.io", "password": "admin12345"}
+        ).json()
+        assert client.post("/admin/auth/logout", json={"refresh_token": login["refresh_token"]}).status_code == 204
+        assert client.post("/admin/auth/refresh", json={"refresh_token": login["refresh_token"]}).status_code == 401

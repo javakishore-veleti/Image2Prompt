@@ -41,7 +41,7 @@ class ServiceSettings(BaseSettings):
     # --- Auth / JWT (must match across services that issue/verify tokens) ---
     jwt_secret: str = "dev-insecure-secret-change-me-please-32b"
     jwt_algorithm: str = "HS256"
-    jwt_expire_minutes: int = 60 * 24
+    jwt_expire_minutes: int = 60  # short-lived access token (revocation via refresh denylist)
     jwt_refresh_expire_minutes: int = 60 * 24 * 30
 
     # --- Database (shared server; one DB, one schema per service) ---

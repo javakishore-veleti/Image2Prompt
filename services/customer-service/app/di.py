@@ -12,6 +12,7 @@ from .dao.customer_dao import CustomerDao
 from .dao.payment_dao import PaymentDao
 from .dao.preference_dao import PreferenceDao
 from .dao.project_dao import ProjectDao
+from .dao.revoked_token_dao import RevokedTokenDao
 from .facades.auth_facade import AuthFacade
 from .facades.connections_facade import ConnectionsFacade
 from .facades.interfaces import (
@@ -36,6 +37,7 @@ _preference_dao = PreferenceDao()
 _project_dao = ProjectDao()
 _payment_dao = PaymentDao()
 _connection_dao = ConnectionDao()
+_revoked_token_dao = RevokedTokenDao()
 
 # --- Services ---
 _token_service = TokenService()
@@ -44,7 +46,10 @@ _stripe_service = StripeService()
 
 # --- Facades (wired against interfaces) ---
 _auth_facade: IAuthFacade = AuthFacade(
-    customer_dao=_customer_dao, preference_dao=_preference_dao, token_service=_token_service
+    customer_dao=_customer_dao,
+    preference_dao=_preference_dao,
+    token_service=_token_service,
+    revoked_token_dao=_revoked_token_dao,
 )
 _profile_facade: IProfileFacade = ProfileFacade(
     customer_dao=_customer_dao, preference_dao=_preference_dao

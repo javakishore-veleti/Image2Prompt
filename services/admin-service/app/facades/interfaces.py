@@ -14,6 +14,9 @@ class IAdminAuthFacade(ABC):
     @abstractmethod
     def refresh(self, req: "dto.AdminRefreshReq") -> "dto.AdminAuthResp": ...
 
+    @abstractmethod
+    def logout(self, req: "dto.AdminLogoutReq") -> "dto.AdminLogoutResp": ...
+
 
 class IProvidersFacade(ABC):
     @abstractmethod

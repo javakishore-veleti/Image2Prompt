@@ -45,6 +45,10 @@ export class AuthService {
   }
 
   logout(): void {
+    const rt = this.refreshTokenValue;
+    if (rt) {
+      this.http.post(`${this.base}/logout`, { refresh_token: rt }).subscribe({ error: () => {} });
+    }
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(REFRESH_KEY);
     localStorage.removeItem(EMAIL_KEY);

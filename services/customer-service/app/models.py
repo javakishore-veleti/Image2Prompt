@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import JSON, String
+from sqlalchemy import JSON, BigInteger, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from image2prompt_shared.base import TimestampMixin, UUIDPkMixin
@@ -54,3 +54,14 @@ class Connection(Base, UUIDPkMixin, TimestampMixin):
     account_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     status: Mapped[str] = mapped_column(String(50), default="connected")
     meta: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class RevokedToken(Base, UUIDPkMixin, TimestampMixin):
+    """Denylist of revoked JWT ids (jti). Refresh tokens are revoked on logout and
+    rotated on use; an access token's short TTL bounds its window."""
+
+    __tablename__ = "revoked_tokens"
+
+    jti: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    expires_at: Mapped[int] = mapped_column(BigInteger, default=0)  # token exp (epoch seconds)
+    reason: Mapped[str] = mapped_column(String(50), default="revoked")

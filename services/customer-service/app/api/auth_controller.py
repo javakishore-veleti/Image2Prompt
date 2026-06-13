@@ -7,7 +7,7 @@ from image2prompt_shared.api_errors import ensure_ok
 
 from ..deps import get_db
 from ..di import get_auth_facade
-from ..dtos.internal_dtos import LoginReq, RefreshReq, SignupReq
+from ..dtos.internal_dtos import LoginReq, LogoutReq, RefreshReq, SignupReq
 from ..facades.interfaces import IAuthFacade
 from ..schemas import LoginRequest, RefreshRequest, SignupRequest, TokenResponse
 
@@ -58,3 +58,12 @@ def refresh(
     return _token_response(
         ensure_ok(facade.refresh(RefreshReq(db=db, refresh_token=payload.refresh_token)))
     )
+
+
+@router.post("/logout", status_code=204)
+def logout(
+    payload: RefreshRequest,
+    db: Session = Depends(get_db),
+    facade: IAuthFacade = Depends(get_auth_facade),
+):
+    ensure_ok(facade.logout(LogoutReq(db=db, refresh_token=payload.refresh_token)))

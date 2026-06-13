@@ -51,6 +51,11 @@ export class AuthService {
   }
 
   logout(): void {
+    const rt = this.refreshTokenValue;
+    if (rt) {
+      // Revoke the refresh token server-side (best-effort); don't block sign-out.
+      this.http.post(`${this.base}/logout`, { refresh_token: rt }).subscribe({ error: () => {} });
+    }
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(REFRESH_KEY);
     localStorage.removeItem(EMAIL_KEY);

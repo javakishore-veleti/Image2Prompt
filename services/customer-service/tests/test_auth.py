@@ -131,3 +131,29 @@ def test_request_id_echoed_by_service():
         # generated when absent
         r2 = client.get("/health")
         assert r2.headers.get("X-Request-ID")
+
+
+def test_logout_revokes_refresh_token():
+    with TestClient(app) as client:
+        s = client.post(
+            "/auth/signup", json={"email": "revoke@example.com", "password": "pw123456"}
+        ).json()
+        # logout revokes the refresh token
+        assert client.post("/auth/logout", json={"refresh_token": s["refresh_token"]}).status_code == 204
+        # the revoked refresh token can no longer mint access tokens
+        assert client.post("/auth/refresh", json={"refresh_token": s["refresh_token"]}).status_code == 401
+
+
+def test_refresh_rotation_blocks_reuse():
+    with TestClient(app) as client:
+        s = client.post(
+            "/auth/signup", json={"email": "rotate@example.com", "password": "pw123456"}
+        ).json()
+        first = client.post("/auth/refresh", json={"refresh_token": s["refresh_token"]})
+        assert first.status_code == 200
+        # reusing the now-rotated refresh token is rejected
+        reuse = client.post("/auth/refresh", json={"refresh_token": s["refresh_token"]})
+        assert reuse.status_code == 401
+        # the newly issued refresh token still works
+        nxt = client.post("/auth/refresh", json={"refresh_token": first.json()["refresh_token"]})
+        assert nxt.status_code == 200

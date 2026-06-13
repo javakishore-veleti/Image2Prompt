@@ -27,6 +27,17 @@ class AdminRefreshReq(BaseReq):
 
 
 @dataclass(kw_only=True)
+class AdminLogoutReq(BaseReq):
+    db: Session
+    refresh_token: str
+
+
+@dataclass(kw_only=True)
+class AdminLogoutResp(BaseResp):
+    pass
+
+
+@dataclass(kw_only=True)
 class AdminAuthResp(BaseResp):
     access_token: Optional[str] = None
     refresh_token: Optional[str] = None
