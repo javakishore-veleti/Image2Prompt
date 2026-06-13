@@ -1,4 +1,5 @@
-"""Smoke test for ai-adapters: the mock provider works offline; stubs error cleanly."""
+"""Smoke test for ai-adapters: the mock provider works offline; every other
+provider is implemented and degrades to an error envelope without SDK/creds."""
 
 import base64
 
@@ -27,47 +28,24 @@ def test_mock_provider_success():
     assert body["output_text"]
 
 
-def test_stub_provider_not_implemented():
-    r = client.post(
-        "/invoke",
-        json={"provider_key": "openai", "request_id": "req-2", "image_base64": IMG_B64},
-    )
-    assert r.status_code == 200
-    body = r.json()
-    assert body["status"] == "error"
-    assert body["error"]["type"] == "not_implemented"
+ALL_REAL = (
+    "bedrock", "strands", "langgraph", "crewai", "llamaindex",
+    "google", "openai", "anthropic", "microsoft",
+)
 
 
-def test_strands_is_a_real_provider():
-    # Strands is implemented (not a stub) and advertised as such.
+def test_all_providers_are_implemented():
+    # No stubs remain — every registered provider reports implemented=True.
     providers = {p["key"]: p for p in client.get("/providers").json()}
-    assert "strands" in providers
-    assert providers["strands"]["implemented"] is True
-
-
-def test_strands_without_sdk_degrades_gracefully():
-    # The Strands SDK isn't installed in the test env; the real controller tries
-    # to import it and the service returns an error envelope (never 500/raises).
-    r = client.post(
-        "/invoke",
-        json={"provider_key": "strands", "request_id": "req-s", "image_base64": IMG_B64},
-    )
-    assert r.status_code == 200
-    body = r.json()
-    assert body["status"] == "error"
-    assert body["error"] is not None
-
-
-def test_framework_providers_are_real():
-    providers = {p["key"]: p for p in client.get("/providers").json()}
-    for key in ("strands", "langgraph", "crewai", "llamaindex"):
+    for key in (*ALL_REAL, "mock"):
         assert providers[key]["implemented"] is True, key
 
 
-def test_framework_providers_degrade_without_sdk():
-    # Framework SDKs aren't installed in the test env; invoking returns an error
-    # envelope (HTTP 200, status=error) rather than raising.
-    for key in ("langgraph", "crewai", "llamaindex"):
+def test_real_providers_degrade_without_sdk_or_creds():
+    # Real controllers try to import their SDK / use creds at invoke time; without
+    # them in the test env the service returns an error envelope (HTTP 200,
+    # status=error) instead of raising.
+    for key in ALL_REAL:
         r = client.post(
             "/invoke", json={"provider_key": key, "request_id": "r", "image_base64": IMG_B64}
         )

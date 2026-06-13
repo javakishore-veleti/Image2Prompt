@@ -9,7 +9,7 @@ langchain-core>=0.3
 crewai>=0.80
 llama-index-core>=0.11
 llama-index-llms-bedrock-converse>=0.3
-# --- direct vendor SDKs (implemented next) ---
-# anthropic>=0.39
-# openai>=1.40
-# google-genai>=0.3
+# --- direct vendor SDKs ---
+anthropic>=0.39
+openai>=1.40                              # also used for Azure OpenAI (Microsoft)
+google-genai>=0.3
