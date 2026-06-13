@@ -1,0 +1,2 @@
+# Core deps come from the shared lib (installed in the Dockerfile).
+# Add image-processing-specific deps here (e.g. boto3/azure/gcp storage SDKs) as backends land.

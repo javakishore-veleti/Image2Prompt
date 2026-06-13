@@ -1,0 +1,6 @@
+# Core deps come from the shared lib (installed in the Dockerfile).
+# Provider SDKs:
+boto3>=1.34
+# anthropic>=0.39        # uncomment when the Anthropic controller is implemented
+# openai>=1.40           # uncomment when the OpenAI controller is implemented
+# google-genai>=0.3      # uncomment when the Google controller is implemented

@@ -1,0 +1,2 @@
+# Deps come from the shared lib (installed in the Dockerfile).
+# Add customer-service-specific deps here (e.g. stripe) as features land.

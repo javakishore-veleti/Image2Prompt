@@ -1,0 +1,2 @@
+# Most deps come from the shared lib (installed in the Dockerfile).
+# Add admin-service-specific deps here.

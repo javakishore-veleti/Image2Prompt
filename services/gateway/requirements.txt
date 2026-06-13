@@ -1,0 +1,1 @@
+# Core deps (fastapi, httpx, pyjwt) come from the shared lib.
