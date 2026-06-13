@@ -11,7 +11,6 @@ excepted) and reverse-proxies to the backing microservice based on path prefix:
 from __future__ import annotations
 
 import time
-import uuid
 from dataclasses import dataclass
 from typing import Callable
 
@@ -23,6 +22,7 @@ from fastapi.responses import JSONResponse
 
 from image2prompt_shared.logging_config import configure_logging, get_logger
 from image2prompt_shared.observability import Metrics, init_observability, instrument_fastapi
+from image2prompt_shared.request_context import RequestIdMiddleware, get_request_id
 from image2prompt_shared.security import decode_token
 
 from .config import settings
@@ -60,6 +60,7 @@ _HOP_BY_HOP = {"host", "content-length", "connection", "keep-alive", "transfer-e
 
 app = FastAPI(title="Image2Prompt Gateway")
 instrument_fastapi(app)
+app.add_middleware(RequestIdMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -116,7 +117,7 @@ def _rate_limited(key: str) -> bool:
 @app.api_route("/api/{full_path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
 async def proxy(full_path: str, request: Request) -> Response:
     path = request.url.path
-    request_id = request.headers.get("x-request-id") or uuid.uuid4().hex
+    request_id = get_request_id()  # set by RequestIdMiddleware (incoming header or generated)
 
     route = _match_route(path)
     if route is None:

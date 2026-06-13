@@ -19,6 +19,12 @@ class _TraceContextFilter(logging.Filter):
         record.trace_id = "-"
         record.span_id = "-"
         try:
+            from .request_context import get_request_id
+
+            record.request_id = get_request_id()
+        except Exception:
+            record.request_id = "-"
+        try:
             from opentelemetry import trace
 
             span = trace.get_current_span()
@@ -40,6 +46,7 @@ class _JsonFormatter(logging.Formatter):
             "msg": record.getMessage(),
             "trace_id": getattr(record, "trace_id", "-"),
             "span_id": getattr(record, "span_id", "-"),
+            "request_id": getattr(record, "request_id", "-"),
         }
         if record.exc_info:
             payload["exc"] = self.formatException(record.exc_info)
@@ -58,7 +65,7 @@ def configure_logging(*, service_name: str, level: str = "INFO", as_json: bool =
         handler.setFormatter(
             logging.Formatter(
                 f"%(asctime)s %(levelname)s [{service_name}] "
-                "[trace=%(trace_id)s span=%(span_id)s] %(name)s: %(message)s"
+                "[req=%(request_id)s trace=%(trace_id)s] %(name)s: %(message)s"
             )
         )
     root = logging.getLogger()

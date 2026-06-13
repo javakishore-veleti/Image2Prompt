@@ -122,3 +122,12 @@ def test_refresh_token_flow():
         # an access token is NOT accepted as a refresh token
         bad = client.post("/auth/refresh", json={"refresh_token": signup["access_token"]})
         assert bad.status_code == 401
+
+
+def test_request_id_echoed_by_service():
+    with TestClient(app) as client:
+        r = client.get("/health", headers={"X-Request-ID": "svc-rid-9"})
+        assert r.headers.get("X-Request-ID") == "svc-rid-9"
+        # generated when absent
+        r2 = client.get("/health")
+        assert r2.headers.get("X-Request-ID")

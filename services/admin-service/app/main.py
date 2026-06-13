@@ -12,6 +12,7 @@ from image2prompt_shared.observability import (
     instrument_fastapi,
     instrument_sqlalchemy,
 )
+from image2prompt_shared.request_context import RequestIdMiddleware
 
 from .api import (
     analytics_controller,
@@ -40,6 +41,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Image2Prompt Admin Service", lifespan=lifespan)
 instrument_fastapi(app)
+app.add_middleware(RequestIdMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
