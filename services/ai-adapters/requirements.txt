@@ -1,7 +1,15 @@
 # Core deps come from the shared lib (installed in the Dockerfile).
-# Provider SDKs:
+# Provider SDKs (real providers; SDKs imported lazily so tests run without them):
 boto3>=1.34
-strands-agents>=0.1        # AWS Strands Agents (real provider; runs on Bedrock)
-# anthropic>=0.39        # uncomment when the Anthropic controller is implemented
-# openai>=1.40           # uncomment when the OpenAI controller is implemented
-# google-genai>=0.3      # uncomment when the Google controller is implemented
+strands-agents>=0.1                       # AWS Strands Agents (runs on Bedrock)
+# --- framework providers (run on Bedrock) ---
+langgraph>=0.2
+langchain-aws>=0.2
+langchain-core>=0.3
+crewai>=0.80
+llama-index-core>=0.11
+llama-index-llms-bedrock-converse>=0.3
+# --- direct vendor SDKs (implemented next) ---
+# anthropic>=0.39
+# openai>=1.40
+# google-genai>=0.3

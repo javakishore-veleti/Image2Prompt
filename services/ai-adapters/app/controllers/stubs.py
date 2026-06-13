@@ -13,6 +13,7 @@ class _StubController(ProviderController):
         raise NotImplementedError(f"Provider '{self.key}' is not implemented yet")
 
 
+# Remaining stubs (direct vendor SDKs) — implemented next.
 class AnthropicController(_StubController):
     key = "anthropic"
 
@@ -27,15 +28,3 @@ class GoogleController(_StubController):
 
 class MicrosoftController(_StubController):
     key = "microsoft"
-
-
-class LangGraphController(_StubController):
-    key = "langgraph"
-
-
-class CrewAIController(_StubController):
-    key = "crewai"
-
-
-class LlamaIndexController(_StubController):
-    key = "llamaindex"
