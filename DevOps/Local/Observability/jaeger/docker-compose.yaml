@@ -1,0 +1,19 @@
+name: img2pmpt-jaeger
+
+# Trace storage + UI (http://localhost:16686). OTLP intake (4317/4318) stays on
+# the internal network — the collector forwards to img2pmpt-jaeger:4317 — so it
+# does not conflict with the collector's published host 4317.
+services:
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    container_name: img2pmpt-jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"   # Jaeger UI
+    networks: [observability]
+
+networks:
+  observability:
+    external: true
+    name: img2pmpt-observability

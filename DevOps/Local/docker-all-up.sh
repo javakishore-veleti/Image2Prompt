@@ -16,3 +16,12 @@ else
     sleep 1
   done
 fi
+
+echo "==> Observability: bringing up the OTel stack (reusing any already running)"
+ensure_obs_network
+for entry in "${OBSERVABILITY_STACKS[@]}"; do
+  IFS=":" read -r name port container compose <<<"$entry"
+  ensure_stack "$name" "$port" "$container" "$compose"
+done
+c_dim "  Jaeger UI :16686 · Prometheus :9090 · Grafana :3000 · OTLP :4317"
+c_dim "  Enable export from services with OTEL_ENABLED=true in .env"

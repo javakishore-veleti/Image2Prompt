@@ -1,0 +1,22 @@
+name: img2pmpt-otel-collector
+
+# The single OTLP endpoint services send to (localhost:4317). Fans traces out to
+# Jaeger and exposes metrics for Prometheus to scrape. Joins the shared external
+# network so it can reach the other observability containers by name.
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.111.0
+    container_name: img2pmpt-otel-collector
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+      - "8889:8889"   # Prometheus metrics (scraped by Prometheus)
+    networks: [observability]
+
+networks:
+  observability:
+    external: true
+    name: img2pmpt-observability

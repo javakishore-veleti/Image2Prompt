@@ -13,3 +13,9 @@ if docker ps --format '{{.Names}}' | grep -q '^img2pmpt-postgres$'; then
 else
   c_dim "  img2pmpt-postgres container: not running (external Postgres may be in use)"
 fi
+
+echo "==> Observability stacks status"
+for entry in "${OBSERVABILITY_STACKS[@]}"; do
+  IFS=":" read -r name port container compose <<<"$entry"
+  status_stack "$name" "$port" "$container"
+done
