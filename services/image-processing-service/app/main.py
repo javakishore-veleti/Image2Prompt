@@ -7,7 +7,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from image2prompt_shared.logging_config import configure_logging, get_logger
-from image2prompt_shared.observability import init_observability
+from image2prompt_shared.observability import (
+    init_observability,
+    instrument_fastapi,
+    instrument_sqlalchemy,
+)
 
 from .api import (
     internal_controller,
@@ -29,10 +33,12 @@ SERVICE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 async def lifespan(app: FastAPI):
     log.info("starting %s (schema=%s)", settings.service_name, settings.db_schema)
     db.bootstrap(base=Base, settings=settings, service_dir=SERVICE_DIR)
+    instrument_sqlalchemy(db.engine)
     yield
 
 
 app = FastAPI(title="Image2Prompt Image Processing Service", lifespan=lifespan)
+instrument_fastapi(app)
 
 app.add_middleware(
     CORSMiddleware,

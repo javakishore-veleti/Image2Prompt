@@ -63,6 +63,9 @@ def init_observability(settings) -> None:
         if _METRICS:
             _setup_metrics(metrics, resource, endpoint, console)
             _meter = metrics.get_meter("image2prompt")
+        # Outbound httpx calls carry the W3C traceparent so traces stitch across
+        # services (gateway -> service -> ai-adapters).
+        instrument_httpx()
         log.info("observability: OTEL initialized (traces=%s metrics=%s)", _TRACES, _METRICS)
     except Exception as exc:  # SDK missing / exporter init failed — never fatal
         _TRACES = _METRICS = False
@@ -84,6 +87,42 @@ def _setup_traces(trace, resource, endpoint, console) -> None:
         if console:
             provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
     trace.set_tracer_provider(provider)
+
+
+def instrument_fastapi(app) -> None:
+    """Auto-instrument a FastAPI app (server spans + context extraction)."""
+    if not _TRACES:
+        return
+    try:
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+
+        FastAPIInstrumentor.instrument_app(app)
+    except Exception as exc:
+        log.warning("observability: FastAPI instrumentation unavailable: %s", exc)
+
+
+def instrument_httpx() -> None:
+    """Auto-instrument httpx clients (outbound spans + traceparent injection)."""
+    if not _TRACES:
+        return
+    try:
+        from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+
+        HTTPXClientInstrumentor().instrument()
+    except Exception as exc:
+        log.warning("observability: httpx instrumentation unavailable: %s", exc)
+
+
+def instrument_sqlalchemy(engine) -> None:
+    """Auto-instrument a SQLAlchemy engine (DB query spans)."""
+    if not _TRACES:
+        return
+    try:
+        from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+
+        SQLAlchemyInstrumentor().instrument(engine=engine)
+    except Exception as exc:
+        log.warning("observability: SQLAlchemy instrumentation unavailable: %s", exc)
 
 
 def _setup_metrics(metrics, resource, endpoint, console) -> None:

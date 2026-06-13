@@ -20,7 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from image2prompt_shared.logging_config import configure_logging, get_logger
-from image2prompt_shared.observability import Metrics, init_observability
+from image2prompt_shared.observability import Metrics, init_observability, instrument_fastapi
 from image2prompt_shared.security import decode_token
 
 from .config import settings
@@ -55,6 +55,7 @@ PUBLIC_PATHS = {
 _HOP_BY_HOP = {"host", "content-length", "connection", "keep-alive", "transfer-encoding"}
 
 app = FastAPI(title="Image2Prompt Gateway")
+instrument_fastapi(app)
 
 app.add_middleware(
     CORSMiddleware,

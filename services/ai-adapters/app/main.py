@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from image2prompt_shared.logging_config import configure_logging, get_logger
-from image2prompt_shared.observability import init_observability
+from image2prompt_shared.observability import init_observability, instrument_fastapi
 
 from .api import invoke_controller
 from .config import settings
@@ -14,6 +14,7 @@ init_observability(settings)
 log = get_logger(__name__)
 
 app = FastAPI(title="Image2Prompt AI Adapters")
+instrument_fastapi(app)
 
 app.add_middleware(
     CORSMiddleware,

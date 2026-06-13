@@ -17,11 +17,13 @@ dependencies = [
     "alembic>=1.13",
     "opentelemetry-api>=1.27",
     "opentelemetry-sdk>=1.27",
+    "opentelemetry-exporter-otlp>=1.27",
+    "opentelemetry-instrumentation-fastapi>=0.48b0",
+    "opentelemetry-instrumentation-httpx>=0.48b0",
+    "opentelemetry-instrumentation-sqlalchemy>=0.48b0",
 ]
 
 [project.optional-dependencies]
-# OTLP exporter is optional; observability degrades to no-op without it.
-otlp = ["opentelemetry-exporter-otlp>=1.27"]
 # Cloud storage SDKs are optional and imported lazily; install per deploy target.
 s3 = ["boto3>=1.34"]
 azure-blob = ["azure-storage-blob>=12.20", "azure-identity>=1.17"]
