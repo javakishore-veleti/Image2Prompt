@@ -7,6 +7,7 @@ import tempfile
 # (in-memory SQLite gives each connection its own private database).
 _db_fd, _db_path = tempfile.mkstemp(suffix=".db")
 os.environ["DATABASE_URL"] = f"sqlite+pysqlite:///{_db_path}"
+os.environ["SCHEDULER_ENABLED"] = "false"
 
 from fastapi.testclient import TestClient  # noqa: E402
 

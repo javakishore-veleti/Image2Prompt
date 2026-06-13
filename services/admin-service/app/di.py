@@ -42,7 +42,9 @@ _auth_facade: IAdminAuthFacade = AdminAuthFacade(
 _providers_facade: IProvidersFacade = ProvidersFacade(provider_dao=_provider_dao)
 _customers_facade: ICustomersFacade = CustomersFacade(directory_service=_directory_service)
 _analytics_facade: IAnalyticsFacade = AnalyticsFacade(
-    provider_dao=_provider_dao, analytics_service=_analytics_service
+    provider_dao=_provider_dao,
+    analytics_service=_analytics_service,
+    csp_violation_dao=_csp_violation_dao,
 )
 _admin_users_facade: IAdminUsersFacade = AdminUsersFacade(admin_user_dao=_admin_user_dao)
 _csp_facade: ICspFacade = CspFacade(csp_violation_dao=_csp_violation_dao)

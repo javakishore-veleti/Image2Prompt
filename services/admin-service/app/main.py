@@ -14,6 +14,7 @@ from image2prompt_shared.observability import (
     instrument_sqlalchemy,
 )
 from image2prompt_shared.request_context import RequestIdMiddleware
+from image2prompt_shared.scheduler import PeriodicScheduler
 
 from .api import (
     admin_users_controller,
@@ -39,9 +40,26 @@ async def lifespan(app: FastAPI):
     log.info("starting %s (schema=%s)", settings.service_name, settings.db_schema)
     db.bootstrap(base=Base, settings=settings, service_dir=SERVICE_DIR, seed_fn=seed)
     instrument_sqlalchemy(db.engine)
-    _prune_revoked_tokens()
-    _prune_csp_violations()
-    yield
+    # Periodic housekeeping so a long-running task doesn't accumulate stale rows
+    # between restarts. run_on_start=True keeps the original startup-prune behavior.
+    scheduler = PeriodicScheduler(enabled=settings.scheduler_enabled)
+    scheduler.add_job(
+        name="prune-revoked-tokens",
+        interval_seconds=settings.prune_interval_seconds,
+        func=_prune_revoked_tokens,
+        run_on_start=True,
+    )
+    scheduler.add_job(
+        name="prune-csp-violations",
+        interval_seconds=settings.prune_interval_seconds,
+        func=_prune_csp_violations,
+        run_on_start=True,
+    )
+    await scheduler.start()
+    try:
+        yield
+    finally:
+        await scheduler.stop()
 
 
 def _prune_csp_violations() -> None:

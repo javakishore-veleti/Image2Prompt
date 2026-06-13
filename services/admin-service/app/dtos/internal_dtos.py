@@ -188,6 +188,18 @@ class CspViolationListResp(BaseResp):
     total: int = 0
 
 
+@dataclass(kw_only=True)
+class CspStatsReq(BaseReq):
+    db: Session
+
+
+@dataclass(kw_only=True)
+class CspStatsResp(BaseResp):
+    total: int = 0  # total reports (sum of per-row counts)
+    distinct: int = 0  # distinct violations (rows)
+    top_directive: Optional[str] = None
+
+
 # --- analytics ---
 @dataclass(kw_only=True)
 class FetchAnalyticsReq(BaseReq):
@@ -212,3 +224,6 @@ class AnalyticsResp(BaseResp):
     providers_total: int = 0
     providers_enabled: int = 0
     image_stats: dict = field(default_factory=dict)
+    csp_total: int = 0
+    csp_distinct: int = 0
+    csp_top_directive: Optional[str] = None

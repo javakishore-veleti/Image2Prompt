@@ -65,6 +65,11 @@ class ServiceSettings(BaseSettings):
     db_schema: str = "public"
     run_migrations_on_startup: bool = True
 
+    # --- Background housekeeping (periodic prunes etc.). Toggle off for tests or
+    # short-lived tasks; interval applies to all scheduled prune jobs. ---
+    scheduler_enabled: bool = True
+    prune_interval_seconds: int = 3600  # hourly
+
     # --- Internal service URLs (service-to-service calls) ---
     admin_service_url: str = "http://localhost:8001"
     customer_service_url: str = "http://localhost:8002"

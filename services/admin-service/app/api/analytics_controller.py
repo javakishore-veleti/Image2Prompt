@@ -26,4 +26,9 @@ async def analytics(
         "providers_total": resp.providers_total,
         "providers_enabled": resp.providers_enabled,
         "image_stats": resp.image_stats,
+        "csp": {
+            "total": resp.csp_total,
+            "distinct": resp.csp_distinct,
+            "top_directive": resp.csp_top_directive,
+        },
     }

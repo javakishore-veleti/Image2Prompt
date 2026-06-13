@@ -11,6 +11,8 @@ from image2prompt_shared.layers import BaseDao
 from image2prompt_shared.observability import observe
 
 from ..dtos.internal_dtos import (
+    CspStatsReq,
+    CspStatsResp,
     CspViolationListResp,
     CspViolationResp,
     IngestViolationReq,
@@ -76,6 +78,18 @@ class CspViolationDao(BaseDao):
         ]
         total = int(req.db.scalar(select(func.sum(CspViolation.count))) or 0)
         return CspViolationListResp(violations=rows, summary=summary, total=total)
+
+    @observe("CspViolationDao.stats")
+    def stats(self, req: CspStatsReq) -> CspStatsResp:
+        total = int(req.db.scalar(select(func.sum(CspViolation.count))) or 0)
+        distinct = int(req.db.scalar(select(func.count(CspViolation.id))) or 0)
+        top = req.db.execute(
+            select(CspViolation.violated_directive)
+            .group_by(CspViolation.violated_directive)
+            .order_by(func.sum(CspViolation.count).desc())
+            .limit(1)
+        ).scalar()
+        return CspStatsResp(total=total, distinct=distinct, top_directive=top)
 
     def prune_older_than(self, db: Session, cutoff: datetime) -> int:
         """Delete violations last seen before ``cutoff``. Returns rows removed."""

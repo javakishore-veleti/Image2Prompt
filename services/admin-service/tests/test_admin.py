@@ -7,6 +7,7 @@ _db_fd, _db_path = tempfile.mkstemp(suffix=".db")
 os.environ["DATABASE_URL"] = f"sqlite+pysqlite:///{_db_path}"
 os.environ["ADMIN_EMAIL"] = "admin@test.io"
 os.environ["ADMIN_PASSWORD"] = "admin12345"
+os.environ["SCHEDULER_ENABLED"] = "false"
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -197,6 +198,39 @@ def test_csp_violation_ingest_and_dashboard():
 
         # dashboard requires auth
         assert client.get("/admin/csp-violations").status_code == 401
+
+
+def test_analytics_surfaces_csp_stats():
+    with TestClient(app) as client:
+        token = _login(client)
+        h = {"Authorization": f"Bearer {token}"}
+        for _ in range(2):
+            client.post(
+                "/internal/csp-violations",
+                json={"violated_directive": "frame-ancestors 'none'", "blocked_uri": "x", "document_uri": "d"},
+            )
+        a = client.get("/admin/analytics", headers=h).json()
+        assert "csp" in a
+        assert a["csp"]["total"] >= 2
+        assert a["csp"]["top_directive"] == "frame-ancestors 'none'"
+
+
+def test_periodic_scheduler_runs_and_can_be_disabled():
+    import asyncio
+
+    from image2prompt_shared.scheduler import PeriodicScheduler
+
+    async def run(enabled: bool) -> int:
+        hits = {"n": 0}
+        sched = PeriodicScheduler(enabled=enabled)
+        sched.add_job(name="t", interval_seconds=0.05, func=lambda: hits.__setitem__("n", hits["n"] + 1), run_on_start=True)
+        await sched.start()
+        await asyncio.sleep(0.12)
+        await sched.stop()
+        return hits["n"]
+
+    assert asyncio.run(run(True)) >= 1
+    assert asyncio.run(run(False)) == 0
 
 
 def test_csp_retention_prune_removes_old_rows():
