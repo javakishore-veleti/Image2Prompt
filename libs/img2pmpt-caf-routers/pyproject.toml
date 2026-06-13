@@ -1,0 +1,21 @@
+[project]
+name = "img2pmpt-caf-routers"
+version = "0.1.0"
+description = "Image2Prompt CAF — LLM routers. OpenRouter / LiteLLM (and more) behind one client interface, with feature-toggled provider implementations selected at runtime."
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+]
+
+[project.optional-dependencies]
+# Router SDKs are imported lazily; install what you route through.
+openrouter = ["openai>=1.40"]
+litellm = ["litellm>=1.40"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["img2pmpt_caf_routers*"]

@@ -24,6 +24,8 @@ class AiAdaptersSettings(ServiceSettings):
     azure_openai_api_key: str = ""
     azure_openai_api_version: str = "2024-06-01"
     azure_openai_deployment: str = "gpt-4o"
+    # Routers (OpenRouter / LiteLLM) are configured by the img2pmpt-caf-routers
+    # library via its own settings (CAF_ROUTERS_* + OPENROUTER_*/LITELLM_*).
 
 
 settings = AiAdaptersSettings()

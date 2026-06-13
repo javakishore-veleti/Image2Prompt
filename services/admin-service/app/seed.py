@@ -21,6 +21,8 @@ DEFAULT_PROVIDERS = [
     {"key": "langgraph", "name": "LangGraph", "category": "framework", "enabled": False},
     {"key": "crewai", "name": "CrewAI", "category": "framework", "enabled": False},
     {"key": "llamaindex", "name": "LlamaIndex", "category": "framework", "enabled": False},
+    {"key": "openrouter", "name": "OpenRouter", "category": "router", "enabled": False},
+    {"key": "litellm", "name": "LiteLLM", "category": "router", "enabled": False},
 ]
 
 

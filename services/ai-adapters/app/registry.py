@@ -7,10 +7,12 @@ from .controllers.bedrock import BedrockController
 from .controllers.crewai_ctrl import CrewAIController
 from .controllers.google_ctrl import GoogleController
 from .controllers.langgraph_ctrl import LangGraphController
+from .controllers.litellm_ctrl import LiteLLMController
 from .controllers.llamaindex_ctrl import LlamaIndexController
 from .controllers.microsoft_ctrl import MicrosoftController
 from .controllers.mock import MockController
 from .controllers.openai_ctrl import OpenAIController
+from .controllers.openrouter_ctrl import OpenRouterController
 from .controllers.strands import StrandsController
 
 
@@ -38,6 +40,8 @@ def build_registry() -> dict[str, ProviderController]:
             api_version=settings.azure_openai_api_version,
             deployment=settings.azure_openai_deployment,
         ),
+        OpenRouterController(),
+        LiteLLMController(),
     ]
     return {c.key: c for c in controllers}
 

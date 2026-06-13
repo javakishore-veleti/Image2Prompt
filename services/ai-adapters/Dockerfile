@@ -4,7 +4,8 @@ FROM python:3.12-slim
 WORKDIR /app
 COPY services/shared /app/shared
 COPY libs/img2pmpt-caf-secret /app/caf
-RUN pip install --no-cache-dir ./shared ./caf boto3
+COPY libs/img2pmpt-caf-routers /app/caf-routers
+RUN pip install --no-cache-dir ./shared ./caf "./caf-routers[openrouter,litellm]" boto3
 COPY services/ai-adapters /app/ai-adapters
 RUN pip install --no-cache-dir -r /app/ai-adapters/requirements.txt
 WORKDIR /app/ai-adapters

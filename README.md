@@ -33,11 +33,11 @@ browse/search generated prompts, plus an admin portal to manage providers and cu
                   │                         │ POST /invoke
               Postgres                ┌─────▼──────────┐
           (db per service)           │  ai-adapters   │ :8003  provider registry
-                                      │ 10 providers   │  feature-toggled controllers
-                                      │ all real:      │  bedrock·anthropic·openai·
-                                      │ mock works     │  google·microsoft·langgraph·
-                                      │ offline        │  crewai·llamaindex·strands·mock
-                                      └────────────────┘
+                                      │ 12 providers   │  feature-toggled controllers
+                                      │ all real:      │  bedrock·anthropic·openai·google·
+                                      │ mock works     │  microsoft·langgraph·crewai·
+                                      │ offline        │  llamaindex·strands·mock + routers
+                                      └────────────────┘  openrouter·litellm (via caf-routers)
 ```
 
 **Provider selection cascade** (most specific wins): per-request override → customer
@@ -129,7 +129,7 @@ npm run local:containers:start-all
 
 # 2) Python venv (one-time): install shared lib + CAF secrets lib + service deps
 python -m venv .venv && . .venv/bin/activate
-pip install ./services/shared ./libs/img2pmpt-caf-secret boto3 email-validator
+pip install ./services/shared ./libs/img2pmpt-caf-secret ./libs/img2pmpt-caf-routers boto3 email-validator
 # (gateway/customer/admin/ai-adapters/image all import the shared lib)
 
 # 3) Bring up services + portals together (portals need `npm install` first)
@@ -183,6 +183,8 @@ services/
 libs/
   img2pmpt-caf-secret/       CAF secrets lib: client (ISecretClient) + provider_impls
                              (env / AWS / Azure / GCP), feature-toggled
+  img2pmpt-caf-routers/      CAF LLM-routers lib: client (IRouterClient) + provider_impls
+                             (OpenRouter / LiteLLM), feature-toggled; ai-adapters delegates
 portals/
   customer-portal/           Angular — Dashboard (per-request provider pick + project),
                              Connections (cloud drives, mock OAuth), Projects, Prompts,

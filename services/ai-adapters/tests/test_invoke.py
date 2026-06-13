@@ -31,6 +31,7 @@ def test_mock_provider_success():
 ALL_REAL = (
     "bedrock", "strands", "langgraph", "crewai", "llamaindex",
     "google", "openai", "anthropic", "microsoft",
+    "openrouter", "litellm",
 )
 
 
