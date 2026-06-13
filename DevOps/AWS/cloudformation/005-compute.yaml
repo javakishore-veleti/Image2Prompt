@@ -1,0 +1,382 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Image2Prompt AWS_005 Compute. ECS Fargate cluster + internet-facing ALB +
+  Cloud Map namespace. The gateway is the only service on the ALB (/api/* ->
+  gateway); everything else is reached over Cloud Map DNS. The ALB default action
+  forwards to the portals target group (filled by AWS_006). Secrets are read at
+  runtime by the app via the CAF 'aws' provider (task role can read the secret).
+
+Parameters:
+  ImageTag:
+    Type: String
+    Default: latest
+  GatewayDesiredCount:
+    Type: Number
+    Default: 2
+  CustomerDesiredCount:
+    Type: Number
+    Default: 1
+  AdminDesiredCount:
+    Type: Number
+    Default: 1
+  AiAdaptersDesiredCount:
+    Type: Number
+    Default: 2
+  ImageDesiredCount:
+    Type: Number
+    Default: 2
+  TaskCpu:
+    Type: String
+    Default: "256"
+  TaskMemory:
+    Type: String
+    Default: "512"
+
+Resources:
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: img2pmpt
+      ClusterSettings: [{ Name: containerInsights, Value: enabled }]
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: /img2pmpt/ecs
+      RetentionInDays: 14
+
+  Namespace:
+    Type: AWS::ServiceDiscovery::PrivateDnsNamespace
+    Properties:
+      Name: img2pmpt.local
+      Vpc: !ImportValue img2pmpt-VpcId
+
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement: [{ Effect: Allow, Principal: { Service: ecs-tasks.amazonaws.com }, Action: sts:AssumeRole }]
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement: [{ Effect: Allow, Principal: { Service: ecs-tasks.amazonaws.com }, Action: sts:AssumeRole }]
+      Policies:
+        - PolicyName: img2pmpt-task
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - { Effect: Allow, Action: [secretsmanager:GetSecretValue], Resource: !ImportValue img2pmpt-AppSecretArn }
+              - { Effect: Allow, Action: [bedrock:InvokeModel], Resource: "*" }
+
+  # ---------------- Load balancer ----------------
+  Alb:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: img2pmpt-alb
+      Scheme: internet-facing
+      Type: application
+      SecurityGroups: [!ImportValue img2pmpt-AlbSecurityGroupId]
+      Subnets: !Split [",", !ImportValue img2pmpt-PublicSubnetIds]
+
+  GatewayTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: img2pmpt-gateway-tg
+      Port: 8000
+      Protocol: HTTP
+      TargetType: ip
+      VpcId: !ImportValue img2pmpt-VpcId
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      Matcher: { HttpCode: "200" }
+
+  PortalsTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: img2pmpt-portals-tg
+      Port: 80
+      Protocol: HTTP
+      TargetType: ip
+      VpcId: !ImportValue img2pmpt-VpcId
+      HealthCheckPath: /
+      HealthCheckIntervalSeconds: 30
+      Matcher: { HttpCode: "200" }
+
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref Alb
+      Port: 80
+      Protocol: HTTP
+      DefaultActions: [{ Type: forward, TargetGroupArn: !Ref PortalsTargetGroup }]
+
+  ApiListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref Listener
+      Priority: 10
+      Conditions: [{ Field: path-pattern, Values: ["/api/*"] }]
+      Actions: [{ Type: forward, TargetGroupArn: !Ref GatewayTargetGroup }]
+
+  # ---------------- Cloud Map (internal DNS) ----------------
+  CustomerDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: customer-service
+      NamespaceId: !Ref Namespace
+      DnsConfig: { NamespaceId: !Ref Namespace, DnsRecords: [{ Type: A, TTL: 10 }], RoutingPolicy: MULTIVALUE }
+      HealthCheckCustomConfig: { FailureThreshold: 1 }
+  AdminDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: admin-service
+      NamespaceId: !Ref Namespace
+      DnsConfig: { NamespaceId: !Ref Namespace, DnsRecords: [{ Type: A, TTL: 10 }], RoutingPolicy: MULTIVALUE }
+      HealthCheckCustomConfig: { FailureThreshold: 1 }
+  AiAdaptersDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: ai-adapters
+      NamespaceId: !Ref Namespace
+      DnsConfig: { NamespaceId: !Ref Namespace, DnsRecords: [{ Type: A, TTL: 10 }], RoutingPolicy: MULTIVALUE }
+      HealthCheckCustomConfig: { FailureThreshold: 1 }
+  ImageDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: image-processing-service
+      NamespaceId: !Ref Namespace
+      DnsConfig: { NamespaceId: !Ref Namespace, DnsRecords: [{ Type: A, TTL: 10 }], RoutingPolicy: MULTIVALUE }
+      HealthCheckCustomConfig: { FailureThreshold: 1 }
+
+  # ---------------- Task definitions ----------------
+  GatewayTaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: img2pmpt-gateway
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: !Ref TaskCpu
+      Memory: !Ref TaskMemory
+      ExecutionRoleArn: !GetAtt ExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: gateway
+          Image: !Sub ["${Uri}:${ImageTag}", { Uri: !ImportValue img2pmpt-EcrUri-gateway }]
+          PortMappings: [{ ContainerPort: 8000 }]
+          Environment:
+            - { Name: CAF_SECRET_PROVIDER, Value: aws }
+            - { Name: CAF_SECRET_AWS_ENABLED, Value: "true" }
+            - { Name: CAF_SECRET_AWS_REGION, Value: !Ref AWS::Region }
+            - { Name: CAF_SECRET_AWS_SECRET_NAME, Value: !ImportValue img2pmpt-AppSecretName }
+            - { Name: ADMIN_SERVICE_URL, Value: "http://admin-service.img2pmpt.local:8001" }
+            - { Name: CUSTOMER_SERVICE_URL, Value: "http://customer-service.img2pmpt.local:8002" }
+            - { Name: AI_ADAPTERS_URL, Value: "http://ai-adapters.img2pmpt.local:8003" }
+            - { Name: IMAGE_SERVICE_URL, Value: "http://image-processing-service.img2pmpt.local:8004" }
+          LogConfiguration:
+            LogDriver: awslogs
+            Options: { awslogs-group: !Ref LogGroup, awslogs-region: !Ref AWS::Region, awslogs-stream-prefix: gateway }
+
+  CustomerTaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: img2pmpt-customer-service
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: !Ref TaskCpu
+      Memory: !Ref TaskMemory
+      ExecutionRoleArn: !GetAtt ExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: customer-service
+          Image: !Sub ["${Uri}:${ImageTag}", { Uri: !ImportValue img2pmpt-EcrUri-customer-service }]
+          PortMappings: [{ ContainerPort: 8002 }]
+          Environment:
+            - { Name: CAF_SECRET_PROVIDER, Value: aws }
+            - { Name: CAF_SECRET_AWS_ENABLED, Value: "true" }
+            - { Name: CAF_SECRET_AWS_REGION, Value: !Ref AWS::Region }
+            - { Name: CAF_SECRET_AWS_SECRET_NAME, Value: !ImportValue img2pmpt-AppSecretName }
+            - { Name: DB_SCHEMA, Value: img2pmpt_customer }
+          LogConfiguration:
+            LogDriver: awslogs
+            Options: { awslogs-group: !Ref LogGroup, awslogs-region: !Ref AWS::Region, awslogs-stream-prefix: customer-service }
+
+  AdminTaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: img2pmpt-admin-service
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: !Ref TaskCpu
+      Memory: !Ref TaskMemory
+      ExecutionRoleArn: !GetAtt ExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: admin-service
+          Image: !Sub ["${Uri}:${ImageTag}", { Uri: !ImportValue img2pmpt-EcrUri-admin-service }]
+          PortMappings: [{ ContainerPort: 8001 }]
+          Environment:
+            - { Name: CAF_SECRET_PROVIDER, Value: aws }
+            - { Name: CAF_SECRET_AWS_ENABLED, Value: "true" }
+            - { Name: CAF_SECRET_AWS_REGION, Value: !Ref AWS::Region }
+            - { Name: CAF_SECRET_AWS_SECRET_NAME, Value: !ImportValue img2pmpt-AppSecretName }
+            - { Name: DB_SCHEMA, Value: img2pmpt_admin }
+            - { Name: CUSTOMER_SERVICE_URL, Value: "http://customer-service.img2pmpt.local:8002" }
+          LogConfiguration:
+            LogDriver: awslogs
+            Options: { awslogs-group: !Ref LogGroup, awslogs-region: !Ref AWS::Region, awslogs-stream-prefix: admin-service }
+
+  AiAdaptersTaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: img2pmpt-ai-adapters
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: !Ref TaskCpu
+      Memory: !Ref TaskMemory
+      ExecutionRoleArn: !GetAtt ExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: ai-adapters
+          Image: !Sub ["${Uri}:${ImageTag}", { Uri: !ImportValue img2pmpt-EcrUri-ai-adapters }]
+          PortMappings: [{ ContainerPort: 8003 }]
+          Environment:
+            - { Name: CAF_SECRET_PROVIDER, Value: aws }
+            - { Name: CAF_SECRET_AWS_ENABLED, Value: "true" }
+            - { Name: CAF_SECRET_AWS_REGION, Value: !Ref AWS::Region }
+            - { Name: CAF_SECRET_AWS_SECRET_NAME, Value: !ImportValue img2pmpt-AppSecretName }
+            - { Name: AWS_REGION, Value: !Ref AWS::Region }
+          LogConfiguration:
+            LogDriver: awslogs
+            Options: { awslogs-group: !Ref LogGroup, awslogs-region: !Ref AWS::Region, awslogs-stream-prefix: ai-adapters }
+
+  ImageTaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: img2pmpt-image-processing-service
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: !Ref TaskCpu
+      Memory: !Ref TaskMemory
+      ExecutionRoleArn: !GetAtt ExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: image-processing-service
+          Image: !Sub ["${Uri}:${ImageTag}", { Uri: !ImportValue img2pmpt-EcrUri-image-processing-service }]
+          PortMappings: [{ ContainerPort: 8004 }]
+          Environment:
+            - { Name: CAF_SECRET_PROVIDER, Value: aws }
+            - { Name: CAF_SECRET_AWS_ENABLED, Value: "true" }
+            - { Name: CAF_SECRET_AWS_REGION, Value: !Ref AWS::Region }
+            - { Name: CAF_SECRET_AWS_SECRET_NAME, Value: !ImportValue img2pmpt-AppSecretName }
+            - { Name: DB_SCHEMA, Value: img2pmpt_image }
+            - { Name: ADMIN_SERVICE_URL, Value: "http://admin-service.img2pmpt.local:8001" }
+            - { Name: CUSTOMER_SERVICE_URL, Value: "http://customer-service.img2pmpt.local:8002" }
+            - { Name: AI_ADAPTERS_URL, Value: "http://ai-adapters.img2pmpt.local:8003" }
+          LogConfiguration:
+            LogDriver: awslogs
+            Options: { awslogs-group: !Ref LogGroup, awslogs-region: !Ref AWS::Region, awslogs-stream-prefix: image-processing-service }
+
+  # ---------------- Services ----------------
+  GatewayService:
+    Type: AWS::ECS::Service
+    DependsOn: Listener
+    Properties:
+      ServiceName: gateway
+      Cluster: !Ref Cluster
+      LaunchType: FARGATE
+      DesiredCount: !Ref GatewayDesiredCount
+      TaskDefinition: !Ref GatewayTaskDef
+      HealthCheckGracePeriodSeconds: 60
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets: !Split [",", !ImportValue img2pmpt-PublicSubnetIds]
+          SecurityGroups: [!ImportValue img2pmpt-ServiceSecurityGroupId]
+      LoadBalancers: [{ ContainerName: gateway, ContainerPort: 8000, TargetGroupArn: !Ref GatewayTargetGroup }]
+
+  CustomerService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: customer-service
+      Cluster: !Ref Cluster
+      LaunchType: FARGATE
+      DesiredCount: !Ref CustomerDesiredCount
+      TaskDefinition: !Ref CustomerTaskDef
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets: !Split [",", !ImportValue img2pmpt-PublicSubnetIds]
+          SecurityGroups: [!ImportValue img2pmpt-ServiceSecurityGroupId]
+      ServiceRegistries: [{ RegistryArn: !GetAtt CustomerDiscovery.Arn }]
+
+  AdminService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: admin-service
+      Cluster: !Ref Cluster
+      LaunchType: FARGATE
+      DesiredCount: !Ref AdminDesiredCount
+      TaskDefinition: !Ref AdminTaskDef
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets: !Split [",", !ImportValue img2pmpt-PublicSubnetIds]
+          SecurityGroups: [!ImportValue img2pmpt-ServiceSecurityGroupId]
+      ServiceRegistries: [{ RegistryArn: !GetAtt AdminDiscovery.Arn }]
+
+  AiAdaptersService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: ai-adapters
+      Cluster: !Ref Cluster
+      LaunchType: FARGATE
+      DesiredCount: !Ref AiAdaptersDesiredCount
+      TaskDefinition: !Ref AiAdaptersTaskDef
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets: !Split [",", !ImportValue img2pmpt-PublicSubnetIds]
+          SecurityGroups: [!ImportValue img2pmpt-ServiceSecurityGroupId]
+      ServiceRegistries: [{ RegistryArn: !GetAtt AiAdaptersDiscovery.Arn }]
+
+  ImageService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: image-processing-service
+      Cluster: !Ref Cluster
+      LaunchType: FARGATE
+      DesiredCount: !Ref ImageDesiredCount
+      TaskDefinition: !Ref ImageTaskDef
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets: !Split [",", !ImportValue img2pmpt-PublicSubnetIds]
+          SecurityGroups: [!ImportValue img2pmpt-ServiceSecurityGroupId]
+      ServiceRegistries: [{ RegistryArn: !GetAtt ImageDiscovery.Arn }]
+
+Outputs:
+  ClusterName:
+    Value: !Ref Cluster
+    Export: { Name: img2pmpt-ClusterName }
+  AlbDNSName:
+    Value: !GetAtt Alb.DNSName
+    Export: { Name: img2pmpt-AlbDNSName }
+  PortalsTargetGroupArn:
+    Value: !Ref PortalsTargetGroup
+    Export: { Name: img2pmpt-PortalsTargetGroupArn }
+  ExecutionRoleArn:
+    Value: !GetAtt ExecutionRole.Arn
+    Export: { Name: img2pmpt-ExecutionRoleArn }
+  TaskRoleArn:
+    Value: !GetAtt TaskRole.Arn
+    Export: { Name: img2pmpt-TaskRoleArn }
+  LogGroupName:
+    Value: !Ref LogGroup
+    Export: { Name: img2pmpt-LogGroupName }

@@ -1,0 +1,177 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Image2Prompt AWS_001 Network. Either creates a new VPC (2 public + 2 private
+  subnets across 2 AZs) or uses an existing VPC + subnets you supply. Also creates
+  the shared security groups (ALB, services, database). Exports are consumed by the
+  other AWS_00N stacks.
+
+Parameters:
+  ExistingVpcId:
+    Type: String
+    Default: ""
+    Description: "Existing VPC ID to reuse. Leave EMPTY to create a new VPC."
+  ExistingPublicSubnetIds:
+    Type: CommaDelimitedList
+    Default: ""
+    Description: "When reusing a VPC: 2 public subnet IDs (comma-separated). Ignored when creating."
+  ExistingPrivateSubnetIds:
+    Type: CommaDelimitedList
+    Default: ""
+    Description: "When reusing a VPC: 2 private subnet IDs (comma-separated). Ignored when creating."
+  VpcCidr:
+    Type: String
+    Default: "10.20.0.0/16"
+
+Conditions:
+  CreateVpc: !Equals [!Ref ExistingVpcId, ""]
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Condition: CreateVpc
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags: [{ Key: Name, Value: img2pmpt-vpc }]
+
+  Igw:
+    Type: AWS::EC2::InternetGateway
+    Condition: CreateVpc
+    Properties:
+      Tags: [{ Key: Name, Value: img2pmpt-igw }]
+
+  IgwAttach:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Condition: CreateVpc
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref Igw
+
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Condition: CreateVpc
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: "10.20.0.0/24"
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      MapPublicIpOnLaunch: true
+      Tags: [{ Key: Name, Value: img2pmpt-public-a }]
+
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Condition: CreateVpc
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: "10.20.1.0/24"
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      MapPublicIpOnLaunch: true
+      Tags: [{ Key: Name, Value: img2pmpt-public-b }]
+
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Condition: CreateVpc
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: "10.20.10.0/24"
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      Tags: [{ Key: Name, Value: img2pmpt-private-a }]
+
+  PrivateSubnetB:
+    Type: AWS::EC2::Subnet
+    Condition: CreateVpc
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: "10.20.11.0/24"
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      Tags: [{ Key: Name, Value: img2pmpt-private-b }]
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Condition: CreateVpc
+    Properties:
+      VpcId: !Ref Vpc
+      Tags: [{ Key: Name, Value: img2pmpt-public-rt }]
+
+  PublicDefaultRoute:
+    Type: AWS::EC2::Route
+    Condition: CreateVpc
+    DependsOn: IgwAttach
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: !Ref Igw
+
+  PublicAssocA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: CreateVpc
+    Properties: { RouteTableId: !Ref PublicRouteTable, SubnetId: !Ref PublicSubnetA }
+
+  PublicAssocB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: CreateVpc
+    Properties: { RouteTableId: !Ref PublicRouteTable, SubnetId: !Ref PublicSubnetB }
+
+  AlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: img2pmpt ALB - public HTTP
+      VpcId: !If [CreateVpc, !Ref Vpc, !Ref ExistingVpcId]
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIp: "0.0.0.0/0" }
+      Tags: [{ Key: Name, Value: img2pmpt-alb-sg }]
+
+  ServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: img2pmpt Fargate services
+      VpcId: !If [CreateVpc, !Ref Vpc, !Ref ExistingVpcId]
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 8000, ToPort: 8000, SourceSecurityGroupId: !Ref AlbSecurityGroup }
+        - { IpProtocol: tcp, FromPort: 80, ToPort: 80, SourceSecurityGroupId: !Ref AlbSecurityGroup }
+      Tags: [{ Key: Name, Value: img2pmpt-service-sg }]
+
+  # Inter-service traffic (gateway -> internal services via Cloud Map).
+  ServiceSelfIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref ServiceSecurityGroup
+      IpProtocol: tcp
+      FromPort: 0
+      ToPort: 65535
+      SourceSecurityGroupId: !Ref ServiceSecurityGroup
+
+  DbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: img2pmpt RDS PostgreSQL
+      VpcId: !If [CreateVpc, !Ref Vpc, !Ref ExistingVpcId]
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 5432, ToPort: 5432, SourceSecurityGroupId: !Ref ServiceSecurityGroup }
+      Tags: [{ Key: Name, Value: img2pmpt-db-sg }]
+
+Outputs:
+  VpcId:
+    Value: !If [CreateVpc, !Ref Vpc, !Ref ExistingVpcId]
+    Export: { Name: img2pmpt-VpcId }
+  PublicSubnetIds:
+    Value: !If
+      - CreateVpc
+      - !Join [",", [!Ref PublicSubnetA, !Ref PublicSubnetB]]
+      - !Join [",", !Ref ExistingPublicSubnetIds]
+    Export: { Name: img2pmpt-PublicSubnetIds }
+  PrivateSubnetIds:
+    Value: !If
+      - CreateVpc
+      - !Join [",", [!Ref PrivateSubnetA, !Ref PrivateSubnetB]]
+      - !Join [",", !Ref ExistingPrivateSubnetIds]
+    Export: { Name: img2pmpt-PrivateSubnetIds }
+  AlbSecurityGroupId:
+    Value: !Ref AlbSecurityGroup
+    Export: { Name: img2pmpt-AlbSecurityGroupId }
+  ServiceSecurityGroupId:
+    Value: !Ref ServiceSecurityGroup
+    Export: { Name: img2pmpt-ServiceSecurityGroupId }
+  DbSecurityGroupId:
+    Value: !Ref DbSecurityGroup
+    Export: { Name: img2pmpt-DbSecurityGroupId }

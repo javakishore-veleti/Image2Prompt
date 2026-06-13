@@ -1,0 +1,38 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Image2Prompt AWS_004 Registry. One ECR repository per service + the portals
+  image. EmptyOnDelete lets the Destroy workflow remove repos even with images.
+
+Resources:
+  GatewayRepo:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Delete
+    Properties: { RepositoryName: img2pmpt/gateway, EmptyOnDelete: true, ImageScanningConfiguration: { ScanOnPush: true } }
+  CustomerRepo:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Delete
+    Properties: { RepositoryName: img2pmpt/customer-service, EmptyOnDelete: true, ImageScanningConfiguration: { ScanOnPush: true } }
+  AdminRepo:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Delete
+    Properties: { RepositoryName: img2pmpt/admin-service, EmptyOnDelete: true, ImageScanningConfiguration: { ScanOnPush: true } }
+  AiAdaptersRepo:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Delete
+    Properties: { RepositoryName: img2pmpt/ai-adapters, EmptyOnDelete: true, ImageScanningConfiguration: { ScanOnPush: true } }
+  ImageRepo:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Delete
+    Properties: { RepositoryName: img2pmpt/image-processing-service, EmptyOnDelete: true, ImageScanningConfiguration: { ScanOnPush: true } }
+  PortalsRepo:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Delete
+    Properties: { RepositoryName: img2pmpt/portals, EmptyOnDelete: true, ImageScanningConfiguration: { ScanOnPush: true } }
+
+Outputs:
+  GatewayRepoUri:    { Value: !GetAtt GatewayRepo.RepositoryUri,    Export: { Name: img2pmpt-EcrUri-gateway } }
+  CustomerRepoUri:   { Value: !GetAtt CustomerRepo.RepositoryUri,   Export: { Name: img2pmpt-EcrUri-customer-service } }
+  AdminRepoUri:      { Value: !GetAtt AdminRepo.RepositoryUri,      Export: { Name: img2pmpt-EcrUri-admin-service } }
+  AiAdaptersRepoUri: { Value: !GetAtt AiAdaptersRepo.RepositoryUri, Export: { Name: img2pmpt-EcrUri-ai-adapters } }
+  ImageRepoUri:      { Value: !GetAtt ImageRepo.RepositoryUri,      Export: { Name: img2pmpt-EcrUri-image-processing-service } }
+  PortalsRepoUri:    { Value: !GetAtt PortalsRepo.RepositoryUri,    Export: { Name: img2pmpt-EcrUri-portals } }

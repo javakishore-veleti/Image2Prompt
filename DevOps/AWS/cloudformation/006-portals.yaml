@@ -1,0 +1,60 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Image2Prompt AWS_006 Portals. A single Fargate service (nginx) serving both
+  Angular portals, registered into the portals target group created by AWS_005
+  (the ALB default action). One task serves / (customer) and /admin/ (admin).
+
+Parameters:
+  ImageTag:
+    Type: String
+    Default: latest
+  PortalsDesiredCount:
+    Type: Number
+    Default: 1
+  TaskCpu:
+    Type: String
+    Default: "256"
+  TaskMemory:
+    Type: String
+    Default: "512"
+
+Resources:
+  PortalsTaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: img2pmpt-portals
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: !Ref TaskCpu
+      Memory: !Ref TaskMemory
+      ExecutionRoleArn: !ImportValue img2pmpt-ExecutionRoleArn
+      TaskRoleArn: !ImportValue img2pmpt-TaskRoleArn
+      ContainerDefinitions:
+        - Name: portals
+          Image: !Sub ["${Uri}:${ImageTag}", { Uri: !ImportValue img2pmpt-EcrUri-portals }]
+          PortMappings: [{ ContainerPort: 80 }]
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !ImportValue img2pmpt-LogGroupName
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: portals
+
+  PortalsService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: portals
+      Cluster: !ImportValue img2pmpt-ClusterName
+      LaunchType: FARGATE
+      DesiredCount: !Ref PortalsDesiredCount
+      TaskDefinition: !Ref PortalsTaskDef
+      HealthCheckGracePeriodSeconds: 60
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets: !Split [",", !ImportValue img2pmpt-PublicSubnetIds]
+          SecurityGroups: [!ImportValue img2pmpt-ServiceSecurityGroupId]
+      LoadBalancers:
+        - ContainerName: portals
+          ContainerPort: 80
+          TargetGroupArn: !ImportValue img2pmpt-PortalsTargetGroupArn
