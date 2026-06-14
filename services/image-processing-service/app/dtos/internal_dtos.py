@@ -154,6 +154,13 @@ class GetRequestReq(BaseReq):
 
 
 @dataclass(kw_only=True)
+class ResolveRequestsReq(BaseReq):
+    db: Session
+    customer_id: str
+    request_ids: list[str] = field(default_factory=list)
+
+
+@dataclass(kw_only=True)
 class ProcReqListResp(BaseResp):
     requests: list[ProcReqLog] = field(default_factory=list)
 

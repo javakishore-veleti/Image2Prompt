@@ -65,7 +65,7 @@ jobs:
       - name: Run all test suites (SQLite-backed, no Postgres needed)
         run: |
           set -e
-          for svc in gateway customer-service admin-service ai-adapters image-processing-service; do
+          for svc in gateway customer-service admin-service ai-adapters image-processing-service kb-service; do
             echo "::group::$svc"
             (cd "services/$svc" && python -m pytest -q)
             echo "::endgroup::"
@@ -119,6 +119,7 @@ jobs:
             "admin-service:services/admin-service/Dockerfile" \
             "ai-adapters:services/ai-adapters/Dockerfile" \
             "image-processing-service:services/image-processing-service/Dockerfile" \
+            "kb-service:services/kb-service/Dockerfile" \
             "portals:portals/Dockerfile"; do
             name="${entry%%:*}"; df="${entry##*:}"
             echo "::group::build $name"

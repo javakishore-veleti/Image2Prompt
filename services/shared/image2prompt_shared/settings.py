@@ -85,6 +85,7 @@ class ServiceSettings(BaseSettings):
     customer_service_url: str = "http://localhost:8002"
     ai_adapters_url: str = "http://localhost:8003"
     image_service_url: str = "http://localhost:8004"
+    kb_service_url: str = "http://localhost:8005"
     gateway_url: str = "http://localhost:8000"
 
     # --- CORS (portals) ---

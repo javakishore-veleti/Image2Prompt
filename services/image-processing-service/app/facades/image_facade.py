@@ -18,6 +18,7 @@ from ..dtos.internal_dtos import (
     ListRequestsReq,
     ProcessFromConnectionReq,
     ProcessImageReq,
+    ResolveRequestsReq,
     ProcReqListResp,
     ProcReqResp,
     PromptListResp,
@@ -168,6 +169,10 @@ class ImageFacade(BaseFacade, IImageFacade):
     @observe("ImageFacade.list_requests")
     def list_requests(self, req: ListRequestsReq) -> ProcReqListResp:
         return self.proc_req_dao.list(req)
+
+    @observe("ImageFacade.resolve_requests")
+    def resolve_requests(self, req: ResolveRequestsReq) -> ProcReqListResp:
+        return self.proc_req_dao.resolve(req)
 
     @observe("ImageFacade.get_request")
     def get_request(self, req: GetRequestReq) -> ProcReqResp:

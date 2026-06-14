@@ -14,12 +14,7 @@ from image2prompt_shared.observability import (
 )
 from image2prompt_shared.request_context import RequestIdMiddleware
 
-from .api import (
-    internal_controller,
-    prompts_controller,
-    providers_controller,
-    requests_controller,
-)
+from .api import kb_controller
 from .config import settings
 from .db import Base, db
 
@@ -38,7 +33,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Image2Prompt Image Processing Service", lifespan=lifespan)
+app = FastAPI(title="Image2Prompt KB Service", lifespan=lifespan)
 instrument_fastapi(app)
 app.add_middleware(RequestIdMiddleware)
 
@@ -50,11 +45,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(requests_controller.router)
-app.include_router(prompts_controller.router)
-app.include_router(providers_controller.router)
-app.include_router(internal_controller.router)
-app.include_router(internal_controller.requests_internal)
+app.include_router(kb_controller.router)
 
 
 @app.get("/health", tags=["health"])

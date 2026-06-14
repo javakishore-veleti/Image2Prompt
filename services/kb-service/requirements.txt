@@ -1,0 +1,10 @@
+# Core deps (fastapi, sqlalchemy, httpx, pydantic) come from the shared lib.
+# Embeddings use boto3 (installed in the Dockerfile) and degrade to a local
+# embedder when unavailable. Vector-store SDKs are optional and lazily imported
+# only when that tech stack is selected; install per deploy target, e.g.:
+#   chromadb>=0.5        # chroma stack
+#   pinecone-client>=5   # pinecone stack
+#   weaviate-client>=4   # weaviate stack
+#   pymongo>=4.8         # mongodb (Atlas Vector Search)
+#   neo4j>=5             # neo4j vector index
+#   opensearch-py>=2.6   # opensearch

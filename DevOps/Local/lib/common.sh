@@ -39,6 +39,7 @@ SERVICES=(
   "customer-service:8002:services/customer-service"
   "ai-adapters:8003:services/ai-adapters"
   "image-processing-service:8004:services/image-processing-service"
+  "kb-service:8005:services/kb-service"
   "gateway:8000:services/gateway"
 )
 

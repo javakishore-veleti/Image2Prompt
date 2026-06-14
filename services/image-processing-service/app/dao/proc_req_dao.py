@@ -11,6 +11,7 @@ from ..dtos.internal_dtos import (
     ListRequestsReq,
     ProcReqListResp,
     ProcReqResp,
+    ResolveRequestsReq,
 )
 from ..models import ProcReqLog, ProcReqLogProvider
 
@@ -50,6 +51,18 @@ class ProcReqDao(BaseDao):
             .order_by(ProcReqLog.created_at.desc())
             .limit(req.limit)
             .offset(req.offset)
+        ).all()
+        return ProcReqListResp(requests=list(rows))
+
+    @observe("ProcReqDao.resolve")
+    def resolve(self, req: ResolveRequestsReq) -> ProcReqListResp:
+        if not req.request_ids:
+            return ProcReqListResp(requests=[])
+        rows = req.db.scalars(
+            select(ProcReqLog).where(
+                ProcReqLog.customer_id == req.customer_id,
+                ProcReqLog.id.in_(req.request_ids),
+            )
         ).all()
         return ProcReqListResp(requests=list(rows))
 

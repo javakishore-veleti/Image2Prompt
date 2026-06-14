@@ -16,6 +16,9 @@ class IImageFacade(ABC):
     def list_requests(self, req: "dto.ListRequestsReq") -> "dto.ProcReqListResp": ...
 
     @abstractmethod
+    def resolve_requests(self, req: "dto.ResolveRequestsReq") -> "dto.ProcReqListResp": ...
+
+    @abstractmethod
     def get_request(self, req: "dto.GetRequestReq") -> "dto.ProcReqResp": ...
 
     @abstractmethod

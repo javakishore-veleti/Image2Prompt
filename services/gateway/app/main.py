@@ -44,6 +44,7 @@ ROUTES: list[Route] = [
     Route("/api/admin", settings.admin_service_url, lambda p: "/admin" + p[len("/api/admin"):]),
     Route("/api/customer", settings.customer_service_url, lambda p: p[len("/api/customer"):] or "/"),
     Route("/api/images", settings.image_service_url, lambda p: p[len("/api/images"):] or "/"),
+    Route("/api/kb", settings.kb_service_url, lambda p: p[len("/api/kb"):] or "/"),
 ]
 
 # Routes that do not require a valid JWT.
