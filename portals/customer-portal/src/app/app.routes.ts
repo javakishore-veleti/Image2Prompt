@@ -17,6 +17,7 @@ export const routes: Routes = [
       { path: 'dashboard', loadComponent: () => import('./pages/dashboard.component').then((m) => m.DashboardComponent) },
       { path: 'connections', loadComponent: () => import('./pages/connections.component').then((m) => m.ConnectionsComponent) },
       { path: 'projects', loadComponent: () => import('./pages/projects.component').then((m) => m.ProjectsComponent) },
+      { path: 'knowledge-bank', loadComponent: () => import('./pages/knowledge-bank.component').then((m) => m.KnowledgeBankComponent) },
       { path: 'prompts', loadComponent: () => import('./pages/prompts.component').then((m) => m.PromptsComponent) },
       { path: 'preferences', loadComponent: () => import('./pages/preferences.component').then((m) => m.PreferencesComponent) },
       { path: 'payment-settings', loadComponent: () => import('./pages/payment-settings.component').then((m) => m.PaymentSettingsComponent) },

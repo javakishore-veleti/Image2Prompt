@@ -68,12 +68,74 @@ export interface ActivityItem {
   detail: Record<string, unknown>;
 }
 
+export interface KbGroup {
+  id: string;
+  project_id: string;
+  name: string;
+  created_at: string;
+}
+
+export interface ProjectKb {
+  id: string;
+  group_id: string;
+  project_id: string;
+  name: string;
+  tech_stack: string;
+  status: string;
+  doc_count: number;
+  backend_ready: boolean;
+}
+
+export interface KbDoc {
+  id: string;
+  generation_id: string;
+  title: string | null;
+  created_at: string;
+}
+
+export interface KbResult {
+  generation_id: string;
+  score: number;
+  title: string | null;
+  project_id: string | null;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   private customer = `${environment.gatewayUrl}/api/customer`;
   private images = `${environment.gatewayUrl}/api/images`;
+  private kb = `${environment.gatewayUrl}/api/kb`;
 
   constructor(private http: HttpClient) {}
+
+  // --- Knowledge Bank (Project KB) ---
+  kbTechStacks(): Observable<string[]> {
+    return this.http.get<string[]>(`${this.kb}/tech-stacks`);
+  }
+  kbGroups(projectId: string): Observable<KbGroup[]> {
+    return this.http.get<KbGroup[]>(`${this.kb}/groups`, { params: new HttpParams().set('project_id', projectId) });
+  }
+  createKbGroup(projectId: string, name: string): Observable<KbGroup> {
+    return this.http.post<KbGroup>(`${this.kb}/groups`, { project_id: projectId, name });
+  }
+  kbs(groupId: string): Observable<ProjectKb[]> {
+    return this.http.get<ProjectKb[]>(`${this.kb}/kbs`, { params: new HttpParams().set('group_id', groupId) });
+  }
+  createKb(body: { group_id: string; project_id: string; name: string; tech_stack: string }): Observable<ProjectKb> {
+    return this.http.post<ProjectKb>(`${this.kb}/kbs`, body);
+  }
+  kbDocuments(kbId: string): Observable<KbDoc[]> {
+    return this.http.get<KbDoc[]>(`${this.kb}/kbs/${kbId}/documents`);
+  }
+  ingestKb(kbId: string, generationIds: string[]): Observable<{ ingested: number; skipped: number; doc_count: number }> {
+    return this.http.post<{ ingested: number; skipped: number; doc_count: number }>(
+      `${this.kb}/kbs/${kbId}/ingest`,
+      { generation_ids: generationIds },
+    );
+  }
+  queryKb(kbId: string, query: string, topK = 5): Observable<{ results: KbResult[] }> {
+    return this.http.post<{ results: KbResult[] }>(`${this.kb}/kbs/${kbId}/query`, { query, top_k: topK });
+  }
 
   // --- Profile / preferences ---
   me(): Observable<any> {

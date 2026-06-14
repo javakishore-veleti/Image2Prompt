@@ -88,6 +88,7 @@ export class ShellComponent {
     { label: 'Dashboard', link: '/dashboard' },
     { label: 'Connections', link: '/connections' },
     { label: 'Projects', link: '/projects' },
+    { label: 'Knowledge Bank', link: '/knowledge-bank' },
     { label: 'Prompts', link: '/prompts' },
     { label: 'Preferences', link: '/preferences' },
     { label: 'Payment Settings', link: '/payment-settings' },
