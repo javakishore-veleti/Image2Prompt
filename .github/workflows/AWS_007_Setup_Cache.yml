@@ -1,5 +1,12 @@
 name: AWS_007_Setup_Cache
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 # Creates ElastiCache Redis, then patches the app secret with REDIS_URL and
 # RATELIMIT_BACKEND=redis (so the CAF aws provider serves them to the gateway and
 # its rate-limit counters become shared across replicas). Restart/redeploy the

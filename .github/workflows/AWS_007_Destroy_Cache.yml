@@ -1,5 +1,12 @@
 name: AWS_007_Destroy_Cache
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 # Flips the app secret back to the in-memory rate limiter (so the gateway stops
 # using Redis), then deletes the ElastiCache stack.
 on:

@@ -1,5 +1,12 @@
 name: AWS_006_Setup_Portals
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 # Builds + pushes the portals image (both Angular apps in one nginx), then
 # deploys the portals Fargate service into the ALB portals target group.
 on:

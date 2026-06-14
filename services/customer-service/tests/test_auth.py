@@ -304,7 +304,7 @@ def test_oauth_tokens_encrypted_at_rest(monkeypatch):
     from app.config import settings as cfg
     from app.di import _connections_facade
     from app.dao.connection_dao import ConnectionDao
-    from app.dtos.internal_dtos import CreateConnectionReq, GetConnectionReq, ListConnectionsReq
+    from app.dtos.internal_dtos import CreateConnectionReq
     from app.db import db as cust_db
     from image2prompt_shared.crypto import TokenCipher
 

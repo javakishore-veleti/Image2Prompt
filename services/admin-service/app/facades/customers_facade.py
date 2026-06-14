@@ -3,7 +3,6 @@ from __future__ import annotations
 from image2prompt_shared.layers import BaseFacade
 from image2prompt_shared.observability import observe
 
-from image2prompt_shared.dtos import BaseResp
 
 from ..dao.audit_dao import AuditDao
 from ..dtos.internal_dtos import (

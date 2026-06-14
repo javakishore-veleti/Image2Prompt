@@ -8,8 +8,39 @@ on:
         description: "Also build the Angular portals (slower)"
         type: boolean
         default: true
+      run_docker_build:
+        description: "Also build all service/portal Docker images (no push; slow)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  lint:
+    name: Lint (ruff pyflakes + compile)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            services/shared/pyproject.toml
+            libs/img2pmpt-caf-secret/pyproject.toml
+            libs/img2pmpt-caf-routers/pyproject.toml
+      - name: Install ruff
+        run: pip install ruff
+      - name: Pyflakes checks (undefined names, unused imports, bad f-strings)
+        run: ruff check --select F services libs
+      - name: Byte-compile (syntax check)
+        run: python -m compileall -q services libs
+
   python-tests:
     name: Python tests (services + CAF)
     runs-on: ubuntu-latest
@@ -19,6 +50,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            services/shared/pyproject.toml
+            libs/img2pmpt-caf-secret/pyproject.toml
+            libs/img2pmpt-caf-routers/pyproject.toml
 
       - name: Install dependencies
         run: |
@@ -55,8 +91,37 @@ jobs:
         with:
           node-version: "20"
 
+      # No committed lockfiles, so cache ~/.npm keyed on package.json directly.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ matrix.portal }}-${{ hashFiles(format('portals/{0}/package.json', matrix.portal)) }}
+          restore-keys: npm-${{ matrix.portal }}-
+
       - name: Install & build ${{ matrix.portal }}
         working-directory: portals/${{ matrix.portal }}
         run: |
           npm install
           npm run build
+
+  docker-build:
+    name: Docker build smoke (no push)
+    if: ${{ inputs.run_docker_build }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build all images (build context = repo root)
+        run: |
+          set -e
+          for entry in \
+            "gateway:services/gateway/Dockerfile" \
+            "customer-service:services/customer-service/Dockerfile" \
+            "admin-service:services/admin-service/Dockerfile" \
+            "ai-adapters:services/ai-adapters/Dockerfile" \
+            "image-processing-service:services/image-processing-service/Dockerfile" \
+            "portals:portals/Dockerfile"; do
+            name="${entry%%:*}"; df="${entry##*:}"
+            echo "::group::build $name"
+            docker build -f "$df" -t "img2pmpt/$name:ci" .
+            echo "::endgroup::"
+          done

@@ -1,5 +1,12 @@
 name: AWS_003_Setup_Database
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 # Creates RDS PostgreSQL, then patches the app secret with DATABASE_URL built
 # from the new endpoint (so the CAF aws provider serves it to every service).
 on:

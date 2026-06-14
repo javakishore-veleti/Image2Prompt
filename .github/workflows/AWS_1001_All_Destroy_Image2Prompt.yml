@@ -1,5 +1,12 @@
 name: AWS_1001_All_Destroy_Image2Prompt
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 # One-stop manual teardown of the entire stack in REVERSE dependency order.
 # Missing stacks are skipped (|| true) so partial deployments still tear down.
 on:

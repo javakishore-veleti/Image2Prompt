@@ -1,5 +1,12 @@
 name: AWS_005_Setup_Compute
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 # Builds + pushes the 5 service images to ECR, then deploys the ECS/ALB stack.
 on:
   workflow_dispatch:

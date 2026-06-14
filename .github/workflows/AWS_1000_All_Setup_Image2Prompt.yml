@@ -1,5 +1,12 @@
 name: AWS_1000_All_Setup_Image2Prompt
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 # One-stop manual deploy of the entire stack in dependency order:
 # network -> secrets -> database(+patch) -> cache(+patch REDIS_URL) -> registry
 # -> build/push -> compute -> portals.
