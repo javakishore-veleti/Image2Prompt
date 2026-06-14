@@ -29,6 +29,11 @@ parts/
 sdist/
 var/
 wheels/
+
+# ...but DevOps/Local/lib holds dev-orchestration shell helpers (common.sh),
+# NOT a Python build dir — keep it tracked.
+!DevOps/Local/lib/
+!DevOps/Local/lib/**
 share/python-wheels/
 *.egg-info/
 .installed.cfg
