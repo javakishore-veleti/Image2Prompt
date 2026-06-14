@@ -20,7 +20,7 @@ jobs:
           aws-region: ${{ inputs.aws_region }}
       - name: Delete all stacks (reverse order)
         run: |
-          for s in img2pmpt-portals img2pmpt-compute img2pmpt-registry img2pmpt-database img2pmpt-secrets img2pmpt-network; do
+          for s in img2pmpt-portals img2pmpt-compute img2pmpt-registry img2pmpt-cache img2pmpt-database img2pmpt-secrets img2pmpt-network; do
             echo "::group::delete $s"
             aws cloudformation delete-stack --stack-name "$s" || true
             aws cloudformation wait stack-delete-complete --stack-name "$s" || true

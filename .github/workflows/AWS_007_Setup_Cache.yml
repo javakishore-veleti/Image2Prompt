@@ -1,0 +1,46 @@
+name: AWS_007_Setup_Cache
+
+# Creates ElastiCache Redis, then patches the app secret with REDIS_URL and
+# RATELIMIT_BACKEND=redis (so the CAF aws provider serves them to the gateway and
+# its rate-limit counters become shared across replicas). Restart/redeploy the
+# gateway service afterwards to pick up the new secret values.
+on:
+  workflow_dispatch:
+    inputs:
+      aws_region:
+        description: AWS region
+        default: us-east-1
+      cache_node_type:
+        description: ElastiCache node type
+        default: cache.t3.micro
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ inputs.aws_region }}
+      - name: Deploy cache stack
+        run: |
+          aws cloudformation deploy \
+            --stack-name img2pmpt-cache \
+            --template-file DevOps/AWS/cloudformation/007-cache.yaml \
+            --parameter-overrides CacheNodeType="${{ inputs.cache_node_type }}" \
+            --no-fail-on-empty-changeset
+      - name: Patch app secret with REDIS_URL + RATELIMIT_BACKEND
+        run: |
+          set -e
+          URL=$(aws cloudformation describe-stacks --stack-name img2pmpt-cache \
+            --query "Stacks[0].Outputs[?OutputKey=='RedisUrl'].OutputValue" --output text)
+          CUR=$(aws secretsmanager get-secret-value --secret-id img2pmpt/app --query SecretString --output text)
+          echo "$CUR" | jq --arg u "$URL" '. + {REDIS_URL: $u, RATELIMIT_BACKEND: "redis"}' > /tmp/secret.json
+          aws secretsmanager put-secret-value --secret-id img2pmpt/app --secret-string file:///tmp/secret.json
+          echo "REDIS_URL + RATELIMIT_BACKEND=redis patched into img2pmpt/app"
+      - name: Force gateway redeploy (pick up new secret)
+        run: |
+          aws ecs update-service --cluster img2pmpt --service gateway --force-new-deployment >/dev/null 2>&1 || \
+            echo "gateway service not found yet; it will read REDIS_URL on next deploy"

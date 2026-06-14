@@ -1,8 +1,8 @@
 name: AWS_1000_All_Setup_Image2Prompt
 
 # One-stop manual deploy of the entire stack in dependency order:
-# network -> secrets -> database(+patch) -> registry -> build/push -> compute
-# -> build/push portals -> portals.
+# network -> secrets -> database(+patch) -> cache(+patch REDIS_URL) -> registry
+# -> build/push -> compute -> portals.
 on:
   workflow_dispatch:
     inputs:
@@ -138,6 +138,17 @@ jobs:
           URL="postgresql+psycopg://${DB_USER}:${DB_PASS}@$(out DbEndpoint):$(out DbPort)/$(out DbName)"
           CUR=$(aws secretsmanager get-secret-value --secret-id img2pmpt/app --query SecretString --output text)
           echo "$CUR" | jq --arg u "$URL" '. + {DATABASE_URL: $u}' > /tmp/secret.json
+          aws secretsmanager put-secret-value --secret-id img2pmpt/app --secret-string file:///tmp/secret.json
+
+      - name: 007 Cache (Redis + patch REDIS_URL / RATELIMIT_BACKEND)
+        run: |
+          set -e
+          aws cloudformation deploy --stack-name img2pmpt-cache \
+            --template-file DevOps/AWS/cloudformation/007-cache.yaml --no-fail-on-empty-changeset
+          URL=$(aws cloudformation describe-stacks --stack-name img2pmpt-cache \
+            --query "Stacks[0].Outputs[?OutputKey=='RedisUrl'].OutputValue" --output text)
+          CUR=$(aws secretsmanager get-secret-value --secret-id img2pmpt/app --query SecretString --output text)
+          echo "$CUR" | jq --arg u "$URL" '. + {REDIS_URL: $u, RATELIMIT_BACKEND: "redis"}' > /tmp/secret.json
           aws secretsmanager put-secret-value --secret-id img2pmpt/app --secret-string file:///tmp/secret.json
 
       - name: 004 Registry

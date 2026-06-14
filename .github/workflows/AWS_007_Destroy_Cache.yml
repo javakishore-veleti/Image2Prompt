@@ -1,0 +1,33 @@
+name: AWS_007_Destroy_Cache
+
+# Flips the app secret back to the in-memory rate limiter (so the gateway stops
+# using Redis), then deletes the ElastiCache stack.
+on:
+  workflow_dispatch:
+    inputs:
+      aws_region:
+        description: AWS region
+        default: us-east-1
+
+jobs:
+  destroy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ inputs.aws_region }}
+      - name: Revert rate-limit backend to memory
+        run: |
+          set -e
+          CUR=$(aws secretsmanager get-secret-value --secret-id img2pmpt/app --query SecretString --output text 2>/dev/null || echo "")
+          if [ -n "$CUR" ]; then
+            echo "$CUR" | jq 'del(.REDIS_URL) | . + {RATELIMIT_BACKEND: "memory"}' > /tmp/secret.json
+            aws secretsmanager put-secret-value --secret-id img2pmpt/app --secret-string file:///tmp/secret.json
+            aws ecs update-service --cluster img2pmpt --service gateway --force-new-deployment >/dev/null 2>&1 || true
+          fi
+      - name: Delete cache stack
+        run: |
+          aws cloudformation delete-stack --stack-name img2pmpt-cache
+          aws cloudformation wait stack-delete-complete --stack-name img2pmpt-cache

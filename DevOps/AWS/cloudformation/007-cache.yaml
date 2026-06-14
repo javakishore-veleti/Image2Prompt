@@ -1,0 +1,61 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Image2Prompt AWS_007 Cache. Single-node ElastiCache Redis in the private
+  subnets, reachable only from the service security group. After this stack is up
+  the AWS_007 workflow patches the app secret with REDIS_URL + RATELIMIT_BACKEND=redis
+  so the gateway shares its rate-limit counters across replicas (the CAF aws
+  provider serves both to the gateway).
+
+Parameters:
+  CacheNodeType:
+    Type: String
+    Default: cache.t3.micro
+  RedisEngineVersion:
+    Type: String
+    Default: "7.1"
+
+Resources:
+  RedisSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: img2pmpt redis - reachable only from the service SG
+      VpcId: !ImportValue img2pmpt-VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+          SourceSecurityGroupId: !ImportValue img2pmpt-ServiceSecurityGroupId
+      Tags: [{ Key: Name, Value: img2pmpt-redis-sg }]
+
+  RedisSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: img2pmpt private subnets
+      SubnetIds: !Split [",", !ImportValue img2pmpt-PrivateSubnetIds]
+
+  RedisCluster:
+    Type: AWS::ElastiCache::CacheCluster
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      ClusterName: img2pmpt-redis
+      Engine: redis
+      EngineVersion: !Ref RedisEngineVersion
+      CacheNodeType: !Ref CacheNodeType
+      NumCacheNodes: 1
+      CacheSubnetGroupName: !Ref RedisSubnetGroup
+      VpcSecurityGroupIds: [!GetAtt RedisSecurityGroup.GroupId]
+      Tags: [{ Key: Name, Value: img2pmpt-redis }]
+
+Outputs:
+  RedisAddress:
+    Value: !GetAtt RedisCluster.RedisEndpoint.Address
+    Export: { Name: img2pmpt-RedisAddress }
+  RedisPort:
+    Value: !GetAtt RedisCluster.RedisEndpoint.Port
+    Export: { Name: img2pmpt-RedisPort }
+  RedisUrl:
+    Value: !Sub
+      - "redis://${A}:${P}/0"
+      - { A: !GetAtt RedisCluster.RedisEndpoint.Address, P: !GetAtt RedisCluster.RedisEndpoint.Port }
+    Export: { Name: img2pmpt-RedisUrl }
