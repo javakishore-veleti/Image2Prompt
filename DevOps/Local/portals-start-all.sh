@@ -5,9 +5,7 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
 echo "==> Portals: starting all"
 for entry in "${PORTALS[@]}"; do
   IFS=":" read -r name port path <<<"$entry"
-  if [[ ! -d "$REPO_ROOT/$path/node_modules" ]]; then
-    c_red "  $name: node_modules missing — run 'npm install' in $path first"
-    continue
-  fi
+  # Install npm deps on first run (only when node_modules is missing).
+  ensure_portal_deps "$name" "$path"
   start_proc "$name" "$REPO_ROOT/$path" npm start
 done

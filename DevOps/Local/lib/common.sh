@@ -60,6 +60,53 @@ OBSERVABILITY_STACKS=(
 # Path to the python interpreter used to run services (override via PYTHON env).
 PYTHON_BIN="${PYTHON:-$REPO_ROOT/.venv/bin/python}"
 
+# Create the repo-root .venv (if missing) and install service dependencies on the
+# first run (or when REINSTALL=1). Idempotent via a sentinel so normal starts are
+# fast. Used by services-start-all so a fresh clone is one command from running.
+ensure_venv_deps() {
+  local venv="$REPO_ROOT/.venv"
+  local sentinel="$venv/.img2pmpt-deps"
+  if [[ ! -d "$venv" ]]; then
+    c_green "  creating Python venv at .venv"
+    "${PYTHON:-python3}" -m venv "$venv"
+  fi
+  if [[ -f "$sentinel" && "${REINSTALL:-0}" != "1" ]]; then
+    return 0
+  fi
+  c_green "  installing service dependencies (first run; set REINSTALL=1 to redo)…"
+  # Core deps every service needs (fatal — can't run without these).
+  "$venv/bin/pip" install -q --upgrade pip
+  "$venv/bin/pip" install -q -e "$REPO_ROOT/services/shared"
+  if [[ -d "$REPO_ROOT/libs/img2pmpt-caf-secret" ]]; then
+    "$venv/bin/pip" install -q -e "$REPO_ROOT/libs/img2pmpt-caf-secret"
+  fi
+  "$venv/bin/pip" install -q boto3 email-validator
+  # Per-service requirements.txt are best-effort: ai-adapters pins heavy/optional
+  # provider SDKs (crewai, langgraph, ...) that may be unavailable for the local
+  # Python — those providers degrade gracefully, so a miss must not block startup.
+  for entry in "${SERVICES[@]}"; do
+    IFS=":" read -r name _p path <<<"$entry"
+    req="$REPO_ROOT/$path/requirements.txt"
+    if [[ -s "$req" ]] && grep -qvE '^\s*(#|$)' "$req"; then
+      if ! "$venv/bin/pip" install -q -r "$req" >/dev/null 2>&1; then
+        c_dim "  note: some optional deps in $name skipped (provider SDKs) — continuing"
+      fi
+    fi
+  done
+  touch "$sentinel"
+  c_green "  service dependencies ready"
+}
+
+# Run 'npm install' in a portal only when node_modules is missing.
+# ensure_portal_deps <name> <path-relative-to-repo-root>
+ensure_portal_deps() {
+  local name="$1" path="$2"
+  if [[ ! -d "$REPO_ROOT/$path/node_modules" ]]; then
+    c_green "  $name: installing npm dependencies (first run)…"
+    ( cd "$REPO_ROOT/$path" && npm install )
+  fi
+}
+
 c_green() { printf '\033[32m%s\033[0m\n' "$1"; }
 c_red()   { printf '\033[31m%s\033[0m\n' "$1"; }
 c_dim()   { printf '\033[2m%s\033[0m\n' "$1"; }

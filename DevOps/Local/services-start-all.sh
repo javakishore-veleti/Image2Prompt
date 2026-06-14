@@ -3,6 +3,8 @@
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/common.sh"
 
 echo "==> Services: starting all"
+# Create the venv + install deps on first run (idempotent; REINSTALL=1 forces).
+ensure_venv_deps
 if [[ ! -x "$PYTHON_BIN" ]]; then
   c_red "  Python interpreter not found at $PYTHON_BIN"
   c_dim  "  Create it: python -m venv .venv && .venv/bin/pip install -e services/shared (+ each service's requirements)"
