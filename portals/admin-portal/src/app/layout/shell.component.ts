@@ -72,6 +72,7 @@ export class ShellComponent {
       { label: 'Customer Listing', link: '/customers', exact: true },
       { label: 'Customer Endpoints', link: '/customers/endpoints' },
       { label: 'Providers', link: '/providers' },
+      { label: 'Subscriptions', link: '/subscriptions' },
       { label: 'Security', link: '/security' },
     ];
     if (this.auth.isSuperadmin) {

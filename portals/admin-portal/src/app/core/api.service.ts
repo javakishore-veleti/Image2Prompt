@@ -42,6 +42,27 @@ export interface CspDashboard {
   violations: CspViolation[];
 }
 
+export interface StackPrice {
+  stack: string;
+  monthly_cost: number;
+}
+
+export interface Plan {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string;
+  stacks: StackPrice[];
+}
+
+export interface SubscriptionRow {
+  id: string;
+  customer_id: string;
+  customer_email: string | null;
+  plan_id: string;
+  status: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   private admin = `${environment.gatewayUrl}/api/admin`;
@@ -116,6 +137,30 @@ export class ApiService {
 
   rotationStatus(): Observable<RotationStatus> {
     return this.http.get<RotationStatus>(`${this.admin}/maintenance/rotation-status`);
+  }
+
+  // --- Subscriptions ---
+  techStacks(): Observable<string[]> {
+    return this.http.get<string[]>(`${this.admin}/subscriptions/tech-stacks`);
+  }
+  plans(search?: string): Observable<Plan[]> {
+    let params = new HttpParams();
+    if (search) params = params.set('search', search);
+    return this.http.get<Plan[]>(`${this.admin}/subscriptions`, { params });
+  }
+  createPlan(body: Partial<Plan>): Observable<Plan> {
+    return this.http.post<Plan>(`${this.admin}/subscriptions`, body);
+  }
+  updatePlan(id: string, body: Partial<Plan>): Observable<Plan> {
+    return this.http.patch<Plan>(`${this.admin}/subscriptions/${id}`, body);
+  }
+  assignCustomer(planId: string, body: { customer_id: string; customer_email?: string }): Observable<SubscriptionRow> {
+    return this.http.post<SubscriptionRow>(`${this.admin}/subscriptions/${planId}/customers`, body);
+  }
+  planCustomers(planId: string, search?: string): Observable<SubscriptionRow[]> {
+    let params = new HttpParams();
+    if (search) params = params.set('search', search);
+    return this.http.get<SubscriptionRow[]>(`${this.admin}/subscriptions/${planId}/customers`, { params });
   }
 
   auditLog(filter: AuditFilter = {}, offset = 0): Observable<Page<AuditEntry>> {
