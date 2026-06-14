@@ -177,6 +177,7 @@ jobs:
             "admin-service:services/admin-service/Dockerfile" \
             "ai-adapters:services/ai-adapters/Dockerfile" \
             "image-processing-service:services/image-processing-service/Dockerfile" \
+            "kb-service:services/kb-service/Dockerfile" \
             "portals:portals/Dockerfile"; do
             name="${entry%%:*}"; dockerfile="${entry##*:}"
             echo "::group::build $name"

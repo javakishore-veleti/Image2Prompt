@@ -24,6 +24,10 @@ Resources:
     Type: AWS::ECR::Repository
     DeletionPolicy: Delete
     Properties: { RepositoryName: img2pmpt/image-processing-service, EmptyOnDelete: true, ImageScanningConfiguration: { ScanOnPush: true } }
+  KbRepo:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Delete
+    Properties: { RepositoryName: img2pmpt/kb-service, EmptyOnDelete: true, ImageScanningConfiguration: { ScanOnPush: true } }
   PortalsRepo:
     Type: AWS::ECR::Repository
     DeletionPolicy: Delete
@@ -35,4 +39,5 @@ Outputs:
   AdminRepoUri:      { Value: !GetAtt AdminRepo.RepositoryUri,      Export: { Name: img2pmpt-EcrUri-admin-service } }
   AiAdaptersRepoUri: { Value: !GetAtt AiAdaptersRepo.RepositoryUri, Export: { Name: img2pmpt-EcrUri-ai-adapters } }
   ImageRepoUri:      { Value: !GetAtt ImageRepo.RepositoryUri,      Export: { Name: img2pmpt-EcrUri-image-processing-service } }
+  KbRepoUri:         { Value: !GetAtt KbRepo.RepositoryUri,         Export: { Name: img2pmpt-EcrUri-kb-service } }
   PortalsRepoUri:    { Value: !GetAtt PortalsRepo.RepositoryUri,    Export: { Name: img2pmpt-EcrUri-portals } }

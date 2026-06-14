@@ -25,6 +25,9 @@ Parameters:
   ImageDesiredCount:
     Type: Number
     Default: 2
+  KbDesiredCount:
+    Type: Number
+    Default: 1
   TaskCpu:
     Type: String
     Default: "256"
@@ -169,6 +172,13 @@ Resources:
       NamespaceId: !Ref Namespace
       DnsConfig: { NamespaceId: !Ref Namespace, DnsRecords: [{ Type: A, TTL: 10 }], RoutingPolicy: MULTIVALUE }
       HealthCheckCustomConfig: { FailureThreshold: 1 }
+  KbDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: kb-service
+      NamespaceId: !Ref Namespace
+      DnsConfig: { NamespaceId: !Ref Namespace, DnsRecords: [{ Type: A, TTL: 10 }], RoutingPolicy: MULTIVALUE }
+      HealthCheckCustomConfig: { FailureThreshold: 1 }
 
   # ---------------- Task definitions ----------------
   GatewayTaskDef:
@@ -194,6 +204,7 @@ Resources:
             - { Name: CUSTOMER_SERVICE_URL, Value: "http://customer-service.img2pmpt.local:8002" }
             - { Name: AI_ADAPTERS_URL, Value: "http://ai-adapters.img2pmpt.local:8003" }
             - { Name: IMAGE_SERVICE_URL, Value: "http://image-processing-service.img2pmpt.local:8004" }
+            - { Name: KB_SERVICE_URL, Value: "http://kb-service.img2pmpt.local:8005" }
             - { Name: OTEL_ENABLED, Value: "true" }
             - { Name: OTEL_EXPORTER_OTLP_ENDPOINT, Value: "http://localhost:4317" }
             - { Name: OTEL_SERVICE_NAMESPACE, Value: image2prompt }
@@ -335,6 +346,39 @@ Resources:
             Options: { awslogs-group: !Ref LogGroup, awslogs-region: !Ref AWS::Region, awslogs-stream-prefix: image-processing-service }
         - *otel_sidecar
 
+  KbTaskDef:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: img2pmpt-kb-service
+      RequiresCompatibilities: [FARGATE]
+      NetworkMode: awsvpc
+      Cpu: !Ref TaskCpu
+      Memory: !Ref TaskMemory
+      ExecutionRoleArn: !GetAtt ExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: kb-service
+          Image: !Sub ["${Uri}:${ImageTag}", { Uri: !ImportValue img2pmpt-EcrUri-kb-service }]
+          PortMappings: [{ ContainerPort: 8005 }]
+          Environment:
+            - { Name: CAF_SECRET_PROVIDER, Value: aws }
+            - { Name: CAF_SECRET_AWS_ENABLED, Value: "true" }
+            - { Name: CAF_SECRET_AWS_REGION, Value: !Ref AWS::Region }
+            - { Name: CAF_SECRET_AWS_SECRET_NAME, Value: !ImportValue img2pmpt-AppSecretName }
+            - { Name: DB_SCHEMA, Value: img2pmpt_kb }
+            - { Name: ADMIN_SERVICE_URL, Value: "http://admin-service.img2pmpt.local:8001" }
+            - { Name: CUSTOMER_SERVICE_URL, Value: "http://customer-service.img2pmpt.local:8002" }
+            - { Name: IMAGE_SERVICE_URL, Value: "http://image-processing-service.img2pmpt.local:8004" }
+            - { Name: OTEL_ENABLED, Value: "true" }
+            - { Name: OTEL_EXPORTER_OTLP_ENDPOINT, Value: "http://localhost:4317" }
+            - { Name: OTEL_SERVICE_NAMESPACE, Value: image2prompt }
+          DependsOn:
+            - { ContainerName: aws-otel-collector, Condition: START }
+          LogConfiguration:
+            LogDriver: awslogs
+            Options: { awslogs-group: !Ref LogGroup, awslogs-region: !Ref AWS::Region, awslogs-stream-prefix: kb-service }
+        - *otel_sidecar
+
   # ---------------- Services ----------------
   GatewayService:
     Type: AWS::ECS::Service
@@ -412,6 +456,21 @@ Resources:
           Subnets: !Split [",", !ImportValue img2pmpt-PublicSubnetIds]
           SecurityGroups: [!ImportValue img2pmpt-ServiceSecurityGroupId]
       ServiceRegistries: [{ RegistryArn: !GetAtt ImageDiscovery.Arn }]
+
+  KbService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: kb-service
+      Cluster: !Ref Cluster
+      LaunchType: FARGATE
+      DesiredCount: !Ref KbDesiredCount
+      TaskDefinition: !Ref KbTaskDef
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets: !Split [",", !ImportValue img2pmpt-PublicSubnetIds]
+          SecurityGroups: [!ImportValue img2pmpt-ServiceSecurityGroupId]
+      ServiceRegistries: [{ RegistryArn: !GetAtt KbDiscovery.Arn }]
 
 Outputs:
   ClusterName:
