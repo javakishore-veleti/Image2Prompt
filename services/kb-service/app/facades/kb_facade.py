@@ -130,7 +130,7 @@ class KbFacade(BaseFacade, IKbFacade):
                 "generation_id": gid, "title": title, "project_id": gen.get("project_id"),
                 "file_ref_id": gen.get("file_ref_id"),
             }
-            store.upsert(namespace=kb.id, doc_id=gid, vector=vector, payload=payload, db=req.db)
+            store.upsert(namespace=kb.id, doc_id=gid, vector=vector, text=text, payload=payload, db=req.db)
             self.kb_dao.add_doc(AddDocReq(db=req.db, kb_id=kb.id, generation_id=gid, title=title, meta=payload))
             ingested += 1
         kb.doc_count = (kb.doc_count or 0) + ingested
@@ -146,7 +146,7 @@ class KbFacade(BaseFacade, IKbFacade):
         kb = got.kb
         store = build_vector_store(kb.tech_stack)
         vector = self.embedder.embed(req.query)
-        hits = store.query(namespace=kb.id, vector=vector, top_k=req.top_k, db=req.db)
+        hits = store.query(namespace=kb.id, vector=vector, text=req.query, top_k=req.top_k, db=req.db)
         results = [
             {
                 "generation_id": h.get("payload", {}).get("generation_id", h.get("id")),

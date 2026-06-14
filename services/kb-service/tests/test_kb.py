@@ -72,6 +72,65 @@ def test_kb_end_to_end(monkeypatch):
         assert client.get("/kbs").status_code == 401
 
 
+def test_registry_maps_every_stack():
+    """Every catalog stack resolves to its dedicated store class; unknown -> base."""
+    from app.services.vectorstores import VectorStore, build_vector_store
+    from app.services.vectorstores.bedrock import BedrockKbStore
+    from app.services.vectorstores.chroma import ChromaVectorStore
+    from app.services.vectorstores.mongodb import MongoVectorStore
+    from app.services.vectorstores.neo4j_store import Neo4jVectorStore
+    from app.services.vectorstores.opensearch import OpenSearchStore
+    from app.services.vectorstores.pinecone_store import PineconeStore
+    from app.services.vectorstores.sql import SqlVectorStore
+    from app.services.vectorstores.weaviate_store import WeaviateStore
+
+    expected = {
+        "pgvector": SqlVectorStore,
+        "chroma": ChromaVectorStore,
+        "bedrock": BedrockKbStore,
+        "opensearch": OpenSearchStore,
+        "mongodb": MongoVectorStore,
+        "neo4j": Neo4jVectorStore,
+        "pinecone": PineconeStore,
+        "weaviate": WeaviateStore,
+    }
+    for stack, cls in expected.items():
+        assert isinstance(build_vector_store(stack), cls)
+    # unknown stack -> in-process base store
+    fallback = build_vector_store("does-not-exist")
+    assert type(fallback) is VectorStore and fallback.ready() is False
+
+
+def test_unconfigured_cloud_store_degrades(monkeypatch):
+    """A cloud stack with no credentials is not ready, but still ingests + queries
+    end-to-end via the in-process fallback (never raises)."""
+    async def _resolve(customer_id, ids):
+        return [g for g in _FAKE_GENS if g["id"] in ids]
+
+    monkeypatch.setattr(_generation_client, "resolve", _resolve)
+
+    from app.services.vectorstores import build_vector_store
+
+    store = build_vector_store("pinecone")
+    assert store.ready() is False  # no PINECONE_API_KEY in tests
+
+    with TestClient(app) as client:
+        h = _auth("cloud-cust")
+        g = client.post("/groups", json={"project_id": "pc", "name": "G"}, headers=h).json()
+        kb = client.post(
+            "/kbs",
+            json={"group_id": g["id"], "project_id": "pc", "name": "Cloud KB", "tech_stack": "pinecone"},
+            headers=h,
+        ).json()
+        assert kb["tech_stack"] == "pinecone" and kb["backend_ready"] is False
+        ing = client.post(f"/kbs/{kb['id']}/ingest", json={"generation_ids": ["g1", "g2"]}, headers=h).json()
+        assert ing["ingested"] == 2
+        res = client.post(
+            f"/kbs/{kb['id']}/query", json={"query": "sunset over mountains", "top_k": 2}, headers=h
+        ).json()
+        assert res["results"] and res["results"][0]["generation_id"] == "g1"
+
+
 def test_subscription_gating(monkeypatch):
     monkeypatch.setattr(cfg, "kb_require_subscription", True)
     from app.di import _subscription_client
