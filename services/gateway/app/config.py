@@ -11,6 +11,10 @@ class GatewaySettings(ServiceSettings):
     # Tighter per-IP budget for unauthenticated auth endpoints (login / signup /
     # password reset) to blunt credential-stuffing. Failures are already audited.
     auth_rate_limit_rpm: int = 10
+    # Rate-limit window store: "memory" (per-replica) or "redis" (shared across
+    # replicas). Redis failures degrade gracefully back to in-memory counting.
+    ratelimit_backend: str = "memory"
+    redis_url: str = "redis://localhost:6379/0"
     # Security response headers + max request body (bytes; 0 disables the cap).
     security_headers_enabled: bool = True
     hsts_enabled: bool = False  # enable once served over HTTPS

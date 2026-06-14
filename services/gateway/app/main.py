@@ -10,7 +10,6 @@ excepted) and reverse-proxies to the backing microservice based on path prefix:
 
 from __future__ import annotations
 
-import time
 from dataclasses import dataclass
 from typing import Callable
 
@@ -27,6 +26,7 @@ from image2prompt_shared.request_context import RequestIdMiddleware, get_request
 from image2prompt_shared.security import decode_token
 
 from .config import settings
+from .ratelimit import build_rate_limiter
 
 configure_logging(service_name=settings.service_name, level=settings.log_level, as_json=settings.log_json)
 init_observability(settings)
@@ -160,7 +160,7 @@ async def csp_report(request: Request) -> Response:
     Reporting-API `application/reports+json` payloads.
     """
     # Rate-limit per client so a noisy/abusive policy can't flood the sink.
-    if _rate_limited(_rate_key(request)):
+    if await _rate_limited(_rate_key(request)):
         return Response(status_code=204)
     try:
         import json
@@ -195,8 +195,9 @@ def _is_public(path: str) -> bool:
     return path in PUBLIC_PATHS
 
 
-# Fixed-window in-memory rate limiter. Key = JWT subject if present, else client IP.
-_RATE_WINDOWS: dict[tuple[str, int], int] = {}
+# Pluggable rate limiter (memory or redis; see ratelimit.py). Key = JWT subject
+# if present, else client IP.
+_LIMITER = build_rate_limiter(settings)
 
 
 def _rate_key(request: Request) -> str:
@@ -220,17 +221,11 @@ AUTH_SENSITIVE_PATHS = {
 }
 
 
-def _rate_limited(key: str, limit: int | None = None) -> bool:
+async def _rate_limited(key: str, limit: int | None = None) -> bool:
     if not settings.rate_limit_enabled:
         return False
     cap = settings.rate_limit_rpm if limit is None else limit
-    window = int(time.time() // 60)
-    bucket = (key, window)
-    _RATE_WINDOWS[bucket] = _RATE_WINDOWS.get(bucket, 0) + 1
-    if len(_RATE_WINDOWS) > 10000:  # opportunistic cleanup of old windows
-        for k in [k for k in _RATE_WINDOWS if k[1] != window]:
-            _RATE_WINDOWS.pop(k, None)
-    return _RATE_WINDOWS[bucket] > cap
+    return await _LIMITER.over_limit(key, cap)
 
 
 @app.api_route("/api/{full_path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
@@ -246,7 +241,7 @@ async def proxy(full_path: str, request: Request) -> Response:
         )
 
     # Rate limit first (deterministic regardless of upstream/auth).
-    if _rate_limited(_rate_key(request)):
+    if await _rate_limited(_rate_key(request)):
         Metrics.counter_add("gateway.rate_limited", 1, {"prefix": route.prefix})
         return JSONResponse(
             status_code=429, content={"detail": "Rate limit exceeded"},
@@ -256,7 +251,7 @@ async def proxy(full_path: str, request: Request) -> Response:
     # Tighter per-IP budget on unauthenticated auth endpoints.
     if path in AUTH_SENSITIVE_PATHS:
         ip = request.client.host if request.client else "unknown"
-        if _rate_limited(f"auth:{path}:{ip}", settings.auth_rate_limit_rpm):
+        if await _rate_limited(f"auth:{path}:{ip}", settings.auth_rate_limit_rpm):
             Metrics.counter_add("gateway.auth_rate_limited", 1, {"path": path})
             return JSONResponse(
                 status_code=429, content={"detail": "Too many attempts; please wait and retry."},

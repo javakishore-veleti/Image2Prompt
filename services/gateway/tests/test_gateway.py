@@ -67,6 +67,33 @@ def test_auth_endpoints_have_tighter_rate_limit(monkeypatch):
     assert client.get("/health").status_code == 200
 
 
+def test_rate_limiter_backends():
+    import asyncio
+
+    from app.ratelimit import MemoryRateLimiter, RedisRateLimiter, build_rate_limiter
+
+    async def run():
+        mem = MemoryRateLimiter()
+        results = [await mem.over_limit("k", 2) for _ in range(3)]
+        assert results == [False, False, True]  # 3rd hit exceeds limit of 2
+        assert await mem.over_limit("k", 0) is False  # 0/negative limit disables
+
+        # Redis backend with an unreachable server degrades to in-memory (never raises)
+        rl = RedisRateLimiter("redis://127.0.0.1:6390/0")
+        degraded = [await rl.over_limit("z", 1) for _ in range(2)]
+        assert degraded == [False, True]
+
+    asyncio.run(run())
+
+    class _S:
+        ratelimit_backend = "memory"
+        redis_url = "redis://x"
+
+    assert isinstance(build_rate_limiter(_S()), MemoryRateLimiter)
+    _S.ratelimit_backend = "redis"
+    assert isinstance(build_rate_limiter(_S()), RedisRateLimiter)
+
+
 def test_csp_report_sink_accepts_reports():
     # The dedicated CSP-report route is public and bypasses the proxy/auth.
     r = client.post("/api/csp-report", json={"csp-report": {"violated-directive": "img-src 'self'"}})
