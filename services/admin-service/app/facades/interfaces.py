@@ -54,6 +54,29 @@ class ICspFacade(ABC):
     def list_violations(self, req: "dto.ListViolationsReq") -> "dto.CspViolationListResp": ...
 
 
+class ISubscriptionsFacade(ABC):
+    @abstractmethod
+    def create_plan(self, req: "dto.CreatePlanReq") -> "dto.PlanResp": ...
+
+    @abstractmethod
+    def update_plan(self, req: "dto.UpdatePlanReq") -> "dto.PlanResp": ...
+
+    @abstractmethod
+    def list_plans(self, req: "dto.ListPlansReq") -> "dto.PlanListResp": ...
+
+    @abstractmethod
+    def get_plan(self, req: "dto.GetPlanReq") -> "dto.PlanResp": ...
+
+    @abstractmethod
+    def assign(self, req: "dto.AssignSubscriptionReq") -> "dto.SubscriptionResp": ...
+
+    @abstractmethod
+    def list_plan_customers(self, req: "dto.ListPlanCustomersReq") -> "dto.SubscriptionListResp": ...
+
+    @abstractmethod
+    def get_customer_subscription(self, req: "dto.GetCustomerSubscriptionReq") -> "dto.SubscriptionResp": ...
+
+
 class IMaintenanceFacade(ABC):
     @abstractmethod
     def prune_now(self, req: "dto.PruneReq") -> "dto.PruneResp": ...

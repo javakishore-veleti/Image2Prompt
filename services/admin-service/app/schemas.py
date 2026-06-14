@@ -111,6 +111,58 @@ class AuditOut(BaseModel):
     detail: dict[str, Any] = {}
 
 
+class StackPrice(BaseModel):
+    stack: str
+    monthly_cost: float = 0.0
+
+
+class PlanCreate(BaseModel):
+    name: str
+    description: str | None = None
+    status: str = "active"
+    stacks: list[StackPrice] = []
+
+
+class PlanUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    status: str | None = None
+    stacks: list[StackPrice] | None = None
+
+
+class PlanOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    name: str
+    description: str | None = None
+    status: str
+    stacks: list[dict[str, Any]] = []
+
+
+class AssignSubscription(BaseModel):
+    customer_id: str
+    customer_email: str | None = None
+
+
+class SubscriptionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    customer_id: str
+    customer_email: str | None = None
+    plan_id: str
+    status: str
+
+
+class CustomerSubscriptionView(BaseModel):
+    """What kb-service consumes to gate KB tech stacks for a customer."""
+
+    has_subscription: bool = False
+    plan_id: str | None = None
+    plan_name: str | None = None
+    status: str | None = None
+    stacks: list[dict[str, Any]] = []  # allowed stacks + cost
+
+
 class CspSummaryItem(BaseModel):
     directive: str
     count: int

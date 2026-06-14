@@ -537,6 +537,67 @@ def test_superadmin_unlock_clears_admin_lockout(monkeypatch):
         ).status_code == 200
 
 
+def test_subscriptions_crud_assign_and_report():
+    with TestClient(app) as client:
+        h = {"Authorization": f"Bearer {_login(client)}"}
+
+        # tech-stack catalog
+        stacks = client.get("/admin/subscriptions/tech-stacks", headers=h).json()
+        assert "pgvector" in stacks and "bedrock" in stacks
+
+        # reject an unknown stack
+        bad = client.post(
+            "/admin/subscriptions",
+            json={"name": "Bad", "stacks": [{"stack": "nope", "monthly_cost": 1}]},
+            headers=h,
+        )
+        assert bad.status_code == 400
+
+        # create a plan with per-stack pricing
+        plan = client.post(
+            "/admin/subscriptions",
+            json={
+                "name": "Pro",
+                "description": "pgvector + chroma",
+                "stacks": [
+                    {"stack": "pgvector", "monthly_cost": 10},
+                    {"stack": "chroma", "monthly_cost": 0},
+                ],
+            },
+            headers=h,
+        ).json()
+        pid = plan["id"]
+        assert {s["stack"] for s in plan["stacks"]} == {"pgvector", "chroma"}
+
+        # duplicate name rejected
+        assert client.post("/admin/subscriptions", json={"name": "Pro"}, headers=h).status_code == 409
+
+        # list + search
+        assert any(p["id"] == pid for p in client.get("/admin/subscriptions", headers=h).json())
+        assert client.get("/admin/subscriptions", params={"search": "Pro"}, headers=h).json()
+
+        # assign two customers, then report by plan with search
+        client.post(f"/admin/subscriptions/{pid}/customers",
+                    json={"customer_id": "c1", "customer_email": "alice@acme.io"}, headers=h)
+        client.post(f"/admin/subscriptions/{pid}/customers",
+                    json={"customer_id": "c2", "customer_email": "bob@acme.io"}, headers=h)
+        report = client.get(f"/admin/subscriptions/{pid}/customers", headers=h).json()
+        assert {r["customer_id"] for r in report} == {"c1", "c2"}
+        filtered = client.get(f"/admin/subscriptions/{pid}/customers", params={"search": "alice"}, headers=h).json()
+        assert [r["customer_id"] for r in filtered] == ["c1"]
+
+        # internal gating view (consumed by kb-service)
+        view = client.get("/internal/subscriptions/customer/c1").json()
+        assert view["has_subscription"] is True and view["plan_name"] == "Pro"
+        assert {s["stack"] for s in view["stacks"]} == {"pgvector", "chroma"}
+        # a customer with no plan
+        none_view = client.get("/internal/subscriptions/customer/nobody").json()
+        assert none_view["has_subscription"] is False
+
+        # CRUD requires auth
+        assert client.get("/admin/subscriptions").status_code == 401
+
+
 def test_login_rejects_bad_password():
     with TestClient(app) as client:
         r = client.post(

@@ -49,6 +49,31 @@ class AuditLog(Base, UUIDPkMixin, TimestampMixin):
     detail: Mapped[dict] = mapped_column(JSON, default=dict)
 
 
+class SubscriptionPlan(Base, UUIDPkMixin, TimestampMixin):
+    """A named subscription plan that gates which KB tech stacks a customer may use
+    and what each costs. ``stacks`` is a list of {stack, monthly_cost} — the stacks
+    present are the ones the plan allows."""
+
+    __tablename__ = "subscription_plans"
+
+    name: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    description: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    status: Mapped[str] = mapped_column(String(50), default="active")
+    stacks: Mapped[list] = mapped_column(JSON, default=list)
+
+
+class CustomerSubscription(Base, UUIDPkMixin, TimestampMixin):
+    """Assigns a customer to a plan (one active plan per customer). customer_email is
+    denormalized for admin reporting without a cross-service lookup."""
+
+    __tablename__ = "customer_subscriptions"
+
+    customer_id: Mapped[str] = mapped_column(String(36), unique=True, index=True)
+    customer_email: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    plan_id: Mapped[str] = mapped_column(String(36), index=True)
+    status: Mapped[str] = mapped_column(String(50), default="active")
+
+
 class CspViolation(Base, UUIDPkMixin, TimestampMixin):
     """A Content-Security-Policy violation report forwarded by the gateway.
     Normalized from both report-uri and Reporting-API payloads.

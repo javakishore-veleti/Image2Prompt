@@ -7,6 +7,7 @@ from .dao.audit_dao import AuditDao
 from .dao.csp_violation_dao import CspViolationDao
 from .dao.provider_dao import ProviderDao
 from .dao.revoked_token_dao import RevokedTokenDao
+from .dao.subscription_dao import SubscriptionDao
 from .facades.admin_users_facade import AdminUsersFacade
 from .facades.analytics_facade import AnalyticsFacade
 from .facades.auth_facade import AdminAuthFacade
@@ -20,9 +21,11 @@ from .facades.interfaces import (
     ICustomersFacade,
     IMaintenanceFacade,
     IProvidersFacade,
+    ISubscriptionsFacade,
 )
 from .facades.maintenance_facade import MaintenanceFacade
 from .facades.providers_facade import ProvidersFacade
+from .facades.subscriptions_facade import SubscriptionsFacade
 from .services.analytics_service import AnalyticsService
 from .services.customer_directory_service import CustomerDirectoryService
 from .services.maintenance_service import MaintenanceService
@@ -34,6 +37,7 @@ _provider_dao = ProviderDao()
 _revoked_token_dao = RevokedTokenDao()
 _csp_violation_dao = CspViolationDao()
 _audit_dao = AuditDao()
+_subscription_dao = SubscriptionDao()
 
 # Services
 _token_service = AdminTokenService()
@@ -63,6 +67,9 @@ _admin_users_facade: IAdminUsersFacade = AdminUsersFacade(
     admin_user_dao=_admin_user_dao, audit_dao=_audit_dao
 )
 _csp_facade: ICspFacade = CspFacade(csp_violation_dao=_csp_violation_dao)
+_subscriptions_facade: ISubscriptionsFacade = SubscriptionsFacade(
+    subscription_dao=_subscription_dao, audit_dao=_audit_dao
+)
 _maintenance_facade: IMaintenanceFacade = MaintenanceFacade(
     revoked_token_dao=_revoked_token_dao,
     csp_violation_dao=_csp_violation_dao,
@@ -78,6 +85,10 @@ def get_auth_facade() -> IAdminAuthFacade:
 
 def get_csp_facade() -> ICspFacade:
     return _csp_facade
+
+
+def get_subscriptions_facade() -> ISubscriptionsFacade:
+    return _subscriptions_facade
 
 
 def get_maintenance_facade() -> IMaintenanceFacade:

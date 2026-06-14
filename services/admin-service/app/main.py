@@ -24,6 +24,7 @@ from .api import (
     customers_controller,
     maintenance_controller,
     providers_controller,
+    subscriptions_controller,
 )
 from .config import settings
 from .db import Base, db
@@ -114,6 +115,8 @@ app.include_router(csp_controller.router)
 app.include_router(csp_controller.internal)
 app.include_router(maintenance_controller.router)
 app.include_router(maintenance_controller.audit)
+app.include_router(subscriptions_controller.router)
+app.include_router(subscriptions_controller.internal)
 
 
 @app.get("/health", tags=["health"])

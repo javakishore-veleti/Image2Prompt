@@ -9,7 +9,14 @@ from sqlalchemy.orm import Session
 
 from image2prompt_shared.dtos import BaseReq, BaseResp
 
-from ..models import AdminUser, AuditLog, CspViolation, Provider
+from ..models import (
+    AdminUser,
+    AuditLog,
+    CspViolation,
+    CustomerSubscription,
+    Provider,
+    SubscriptionPlan,
+)
 
 
 # --- auth ---
@@ -266,6 +273,86 @@ class ListAuditReq(BaseReq):
 class AuditListResp(BaseResp):
     entries: list[AuditLog] = field(default_factory=list)
     total: int = 0
+
+
+# --- subscriptions ---
+@dataclass(kw_only=True)
+class CreatePlanReq(BaseReq):
+    db: Session
+    name: str
+    description: Optional[str] = None
+    status: str = "active"
+    stacks: list = field(default_factory=list)  # [{stack, monthly_cost}]
+    actor_id: Optional[str] = None
+    actor_email: Optional[str] = None
+
+
+@dataclass(kw_only=True)
+class UpdatePlanReq(BaseReq):
+    db: Session
+    plan_id: str
+    name: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[str] = None
+    stacks: Optional[list] = None
+    actor_id: Optional[str] = None
+    actor_email: Optional[str] = None
+
+
+@dataclass(kw_only=True)
+class ListPlansReq(BaseReq):
+    db: Session
+    search: Optional[str] = None
+
+
+@dataclass(kw_only=True)
+class GetPlanReq(BaseReq):
+    db: Session
+    plan_id: str
+
+
+@dataclass(kw_only=True)
+class PlanResp(BaseResp):
+    plan: Optional[SubscriptionPlan] = None
+
+
+@dataclass(kw_only=True)
+class PlanListResp(BaseResp):
+    plans: list[SubscriptionPlan] = field(default_factory=list)
+
+
+@dataclass(kw_only=True)
+class AssignSubscriptionReq(BaseReq):
+    db: Session
+    plan_id: str
+    customer_id: str
+    customer_email: Optional[str] = None
+    actor_id: Optional[str] = None
+    actor_email: Optional[str] = None
+
+
+@dataclass(kw_only=True)
+class ListPlanCustomersReq(BaseReq):
+    db: Session
+    plan_id: str
+    search: Optional[str] = None
+
+
+@dataclass(kw_only=True)
+class GetCustomerSubscriptionReq(BaseReq):
+    db: Session
+    customer_id: str
+
+
+@dataclass(kw_only=True)
+class SubscriptionResp(BaseResp):
+    subscription: Optional[CustomerSubscription] = None
+    plan: Optional[SubscriptionPlan] = None
+
+
+@dataclass(kw_only=True)
+class SubscriptionListResp(BaseResp):
+    subscriptions: list[CustomerSubscription] = field(default_factory=list)
 
 
 # --- maintenance ---
