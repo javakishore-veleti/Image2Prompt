@@ -37,6 +37,17 @@ def test_request_id_is_echoed():
     assert r.headers.get("X-Request-ID") == "test-req-123"
 
 
+def test_internal_paths_are_not_proxied():
+    # Routes that strip their prefix (kb, customer) must not expose the upstream's
+    # trusted /internal surface. The guard runs before auth, so the tell is 404
+    # (blocked) vs 401 (missing token on a normal proxied path).
+    assert client.get("/api/kb/internal/usage/customer/anyone").status_code == 404
+    assert client.get("/api/customer/internal/customers/x").status_code == 404
+    # A normal proxied path is not blocked by the guard (it proceeds to auth/rate
+    # limiting — 401 or 429, never the guard's 404), proving the guard is specific.
+    assert client.get("/api/kb/kbs").status_code != 404
+
+
 def test_security_headers_present():
     r = client.get("/health")
     assert r.headers.get("X-Content-Type-Options") == "nosniff"

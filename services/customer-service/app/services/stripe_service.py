@@ -38,6 +38,28 @@ class SetupIntentResp(BaseResp):
 
 
 @dataclass(kw_only=True)
+class InvoiceLineItem:
+    description: str
+    amount: float  # in major currency units (e.g. dollars)
+
+
+@dataclass(kw_only=True)
+class CreateInvoiceReq(BaseReq):
+    customer_id: Optional[str] = None
+    line_items: list = field(default_factory=list)  # list[InvoiceLineItem]
+    currency: str = "usd"
+
+
+@dataclass(kw_only=True)
+class CreateInvoiceResp(BaseResp):
+    configured: bool = False
+    invoice_id: Optional[str] = None
+    hosted_invoice_url: Optional[str] = None
+    amount: float = 0.0
+    status: Optional[str] = None
+
+
+@dataclass(kw_only=True)
 class ReceiptsReq(BaseReq):
     customer_id: Optional[str] = None
 
@@ -82,6 +104,38 @@ class StripeService(BaseService):
             return SetupIntentResp(configured=True, client_secret=si["client_secret"])
         except Exception as exc:
             return SetupIntentResp(success=False, error_code="upstream_error", error_message=str(exc))
+
+    @observe("StripeService.create_invoice")
+    def create_invoice(self, req: CreateInvoiceReq) -> CreateInvoiceResp:
+        """Bill the customer for the given line items: create one Stripe invoice
+        item per line, then a single invoice, and finalize it. No-op (configured=
+        False) without a Stripe key or with no line items."""
+        if not self._ready() or not req.customer_id:
+            return CreateInvoiceResp(configured=self._ready())
+        billable = [li for li in req.line_items if li.amount > 0]
+        if not billable:
+            return CreateInvoiceResp(configured=True, amount=0.0, status="nothing_to_bill")
+        try:
+            stripe = self._stripe()
+            for li in billable:
+                stripe.InvoiceItem.create(
+                    customer=req.customer_id,
+                    amount=int(round(li.amount * 100)),  # Stripe charges in minor units
+                    currency=req.currency,
+                    description=li.description,
+                )
+            invoice = stripe.Invoice.create(customer=req.customer_id, auto_advance=True)
+            finalized = stripe.Invoice.finalize_invoice(invoice["id"])
+            return CreateInvoiceResp(
+                configured=True,
+                invoice_id=finalized["id"],
+                hosted_invoice_url=finalized.get("hosted_invoice_url"),
+                amount=(finalized.get("amount_due", 0) or 0) / 100.0,
+                status=finalized.get("status"),
+            )
+        except Exception as exc:
+            self.log.warning("stripe create_invoice failed: %s", exc)
+            return CreateInvoiceResp(success=False, error_code="upstream_error", error_message=str(exc))
 
     @observe("StripeService.list_receipts")
     def list_receipts(self, req: ReceiptsReq) -> ReceiptsResp:

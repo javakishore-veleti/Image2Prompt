@@ -131,6 +131,35 @@ def test_unconfigured_cloud_store_degrades(monkeypatch):
         assert res["results"] and res["results"][0]["generation_id"] == "g1"
 
 
+def test_internal_usage_reports_per_stack_counts(monkeypatch):
+    """The /internal usage endpoint (consumed by customer-service billing) returns
+    one entry per tech stack with KB and doc counts for the customer."""
+    async def _resolve(customer_id, ids):
+        return [g for g in _FAKE_GENS if g["id"] in ids]
+
+    monkeypatch.setattr(_generation_client, "resolve", _resolve)
+
+    with TestClient(app) as client:
+        h = _auth("usage-cust")
+        g = client.post("/groups", json={"project_id": "pu", "name": "G"}, headers=h).json()
+        # one pgvector KB with two docs, one chroma KB with one doc
+        pg = client.post(
+            "/kbs", json={"group_id": g["id"], "project_id": "pu", "name": "PG", "tech_stack": "pgvector"}, headers=h
+        ).json()
+        ch = client.post(
+            "/kbs", json={"group_id": g["id"], "project_id": "pu", "name": "CH", "tech_stack": "chroma"}, headers=h
+        ).json()
+        client.post(f"/kbs/{pg['id']}/ingest", json={"generation_ids": ["g1", "g2"]}, headers=h)
+        client.post(f"/kbs/{ch['id']}/ingest", json={"generation_ids": ["g1"]}, headers=h)
+
+        usage = client.get("/internal/usage/customer/usage-cust").json()
+        by_stack = {s["stack"]: s for s in usage["stacks"]}
+        assert by_stack["pgvector"] == {"stack": "pgvector", "kb_count": 1, "doc_count": 2}
+        assert by_stack["chroma"] == {"stack": "chroma", "kb_count": 1, "doc_count": 1}
+        # a customer with no KBs reports nothing
+        assert client.get("/internal/usage/customer/nobody").json()["stacks"] == []
+
+
 def test_subscription_gating(monkeypatch):
     monkeypatch.setattr(cfg, "kb_require_subscription", True)
     from app.di import _subscription_client

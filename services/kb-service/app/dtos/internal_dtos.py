@@ -123,3 +123,17 @@ class AddDocReq(BaseReq):
     generation_id: str
     title: Optional[str] = None
     meta: dict = field(default_factory=dict)
+
+
+# --- usage (billing: per-stack KB/doc counts for a customer) ---
+@dataclass(kw_only=True)
+class UsageReq(BaseReq):
+    db: Session
+    customer_id: str
+
+
+@dataclass(kw_only=True)
+class UsageResp(BaseResp):
+    # one entry per tech stack the customer has KBs in:
+    # {"stack": str, "kb_count": int, "doc_count": int}
+    stacks: list[dict] = field(default_factory=list)

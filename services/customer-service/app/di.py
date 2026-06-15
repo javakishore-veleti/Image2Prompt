@@ -28,6 +28,7 @@ from .facades.internal_facade import InternalFacade
 from .facades.payments_facade import PaymentsFacade
 from .facades.profile_facade import ProfileFacade
 from .facades.projects_facade import ProjectsFacade
+from .services.billing_clients import BillingClient
 from .services.connection_provider_service import ConnectionProviderService
 from .services.email_service import EmailService
 from .services.google_drive_service import GoogleDriveService
@@ -51,6 +52,7 @@ _google_drive_service = GoogleDriveService()
 _onedrive_service = OneDriveService()
 _stripe_service = StripeService()
 _email_service = EmailService()
+_billing_client = BillingClient()
 
 # --- Facades (wired against interfaces) ---
 _auth_facade: IAuthFacade = AuthFacade(
@@ -66,7 +68,10 @@ _profile_facade: IProfileFacade = ProfileFacade(
 )
 _projects_facade: IProjectsFacade = ProjectsFacade(project_dao=_project_dao)
 _payments_facade: IPaymentsFacade = PaymentsFacade(
-    payment_dao=_payment_dao, customer_dao=_customer_dao, stripe_service=_stripe_service
+    payment_dao=_payment_dao,
+    customer_dao=_customer_dao,
+    stripe_service=_stripe_service,
+    billing_client=_billing_client,
 )
 _internal_facade: IInternalFacade = InternalFacade(
     customer_dao=_customer_dao, preference_dao=_preference_dao

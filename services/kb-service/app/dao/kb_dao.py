@@ -18,6 +18,8 @@ from ..dtos.internal_dtos import (
     ListDocsReq,
     ListGroupsReq,
     ListKbsReq,
+    UsageReq,
+    UsageResp,
 )
 from ..models import KbDocument, KbGroup, ProjectKb
 
@@ -91,4 +93,25 @@ class KbDao(BaseDao):
             select(KbDocument).where(
                 KbDocument.kb_id == kb_id, KbDocument.generation_id == generation_id
             )
+        )
+
+    # --- usage (billing) ---
+    @observe("KbDao.usage_by_customer")
+    def usage_by_customer(self, req: UsageReq) -> UsageResp:
+        """Per-stack KB count + summed doc_count for a customer (the billable shape)."""
+        rows = req.db.execute(
+            select(
+                ProjectKb.tech_stack,
+                func.count(ProjectKb.id),
+                func.coalesce(func.sum(ProjectKb.doc_count), 0),
+            )
+            .where(ProjectKb.customer_id == req.customer_id)
+            .group_by(ProjectKb.tech_stack)
+            .order_by(ProjectKb.tech_stack)
+        ).all()
+        return UsageResp(
+            stacks=[
+                {"stack": stack, "kb_count": int(kb_count), "doc_count": int(doc_count)}
+                for stack, kb_count, doc_count in rows
+            ]
         )

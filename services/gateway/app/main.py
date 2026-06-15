@@ -241,6 +241,16 @@ async def proxy(full_path: str, request: Request) -> Response:
             headers={"X-Request-ID": request_id},
         )
 
+    # Never proxy to a service's /internal/* surface — those are trusted
+    # service-to-service endpoints (no per-caller authz) reached over the internal
+    # network only. Routes that strip their prefix (e.g. /api/kb) would otherwise
+    # let a client hit /api/kb/internal/... and read another customer's data.
+    if route.rewrite(path).startswith("/internal"):
+        return JSONResponse(
+            status_code=404, content={"detail": "Not found"},
+            headers={"X-Request-ID": request_id},
+        )
+
     # Rate limit first (deterministic regardless of upstream/auth).
     if await _rate_limited(_rate_key(request)):
         Metrics.counter_add("gateway.rate_limited", 1, {"prefix": route.prefix})

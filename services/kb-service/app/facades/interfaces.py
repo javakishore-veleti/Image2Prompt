@@ -31,3 +31,6 @@ class IKbFacade(ABC):
 
     @abstractmethod
     async def query(self, req: "dto.QueryReq") -> "dto.QueryResp": ...
+
+    @abstractmethod
+    def usage(self, req: "dto.UsageReq") -> "dto.UsageResp": ...

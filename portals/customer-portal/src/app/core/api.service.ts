@@ -161,6 +161,9 @@ export class ApiService {
   billing(): Observable<any> {
     return this.http.get(`${this.customer}/me/billing`);
   }
+  chargeSubscription(): Observable<any> {
+    return this.http.post(`${this.customer}/me/billing/invoice`, {});
+  }
 
   // --- Projects ---
   projects(): Observable<any[]> {

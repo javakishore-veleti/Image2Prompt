@@ -22,6 +22,8 @@ from ..dtos.internal_dtos import (
     ListKbsReq,
     QueryReq,
     QueryResp,
+    UsageReq,
+    UsageResp,
 )
 from ..services.clients import GenerationClient, SubscriptionClient
 from ..services.embedder import Embedder
@@ -157,3 +159,8 @@ class KbFacade(BaseFacade, IKbFacade):
             for h in hits
         ]
         return QueryResp(results=results)
+
+    # --- usage (consumed by customer-service billing over /internal) ---
+    @observe("KbFacade.usage")
+    def usage(self, req: UsageReq) -> UsageResp:
+        return self.kb_dao.usage_by_customer(req)

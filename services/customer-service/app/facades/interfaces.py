@@ -75,6 +75,11 @@ class IPaymentsFacade(ABC):
     @abstractmethod
     def get_billing(self, req: "dto.BillingReq") -> "dto.BillingResp": ...
 
+    @abstractmethod
+    def charge_subscription(
+        self, req: "dto.ChargeSubscriptionReq"
+    ) -> "dto.ChargeSubscriptionResp": ...
+
 
 class IConnectionsFacade(ABC):
     @abstractmethod

@@ -267,6 +267,27 @@ class BillingResp(BaseResp):
     receipts: list = field(default_factory=list)
     balance_due: float = 0.0
     currency: str = "usd"
+    # Current KB subscription charges (plan price x stacks the customer uses):
+    # {has_subscription, plan_name, line_items:[{stack,kb_count,doc_count,monthly_cost}],
+    #  monthly_total, currency}
+    subscription: dict = field(default_factory=dict)
+
+
+@dataclass(kw_only=True)
+class ChargeSubscriptionReq(BaseReq):
+    db: Session
+    customer_id: str
+
+
+@dataclass(kw_only=True)
+class ChargeSubscriptionResp(BaseResp):
+    configured: bool = False
+    invoice_id: Optional[str] = None
+    hosted_invoice_url: Optional[str] = None
+    amount: float = 0.0
+    currency: str = "usd"
+    status: Optional[str] = None
+    line_items: list = field(default_factory=list)
 
 
 # --- connections (external file systems; mock OAuth for now) ---

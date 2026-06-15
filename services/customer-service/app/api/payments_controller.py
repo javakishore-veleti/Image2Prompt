@@ -8,7 +8,13 @@ from image2prompt_shared.auth_dep import Principal
 
 from ..deps import current_customer, get_db
 from ..di import get_payments_facade
-from ..dtos.internal_dtos import BillingReq, GetPaymentReq, SetupIntentReq, UpdatePaymentReq
+from ..dtos.internal_dtos import (
+    BillingReq,
+    ChargeSubscriptionReq,
+    GetPaymentReq,
+    SetupIntentReq,
+    UpdatePaymentReq,
+)
 from ..facades.interfaces import IPaymentsFacade
 from ..schemas import PaymentSettingsOut, PaymentSettingsUpdate
 
@@ -66,4 +72,24 @@ def get_billing(
         "receipts": resp.receipts,
         "balance_due": resp.balance_due,
         "currency": resp.currency,
+        "subscription": resp.subscription,
+    }
+
+
+@router.post("/billing/invoice")
+def charge_subscription(
+    principal: Principal = Depends(current_customer),
+    db: Session = Depends(get_db),
+    facade: IPaymentsFacade = Depends(get_payments_facade),
+):
+    """Generate a Stripe invoice for the current month's KB subscription charges."""
+    resp = ensure_ok(facade.charge_subscription(ChargeSubscriptionReq(db=db, customer_id=principal.id)))
+    return {
+        "configured": resp.configured,
+        "invoice_id": resp.invoice_id,
+        "hosted_invoice_url": resp.hosted_invoice_url,
+        "amount": resp.amount,
+        "currency": resp.currency,
+        "status": resp.status,
+        "line_items": resp.line_items,
     }

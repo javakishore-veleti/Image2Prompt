@@ -14,7 +14,7 @@ from image2prompt_shared.observability import (
 )
 from image2prompt_shared.request_context import RequestIdMiddleware
 
-from .api import kb_controller
+from .api import internal_controller, kb_controller
 from .config import settings
 from .db import Base, db
 
@@ -46,6 +46,7 @@ app.add_middleware(
 )
 
 app.include_router(kb_controller.router)
+app.include_router(internal_controller.router)
 
 
 @app.get("/health", tags=["health"])
