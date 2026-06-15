@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from image2prompt_shared.security import hash_password
 
 from .config import settings
-from .models import AdminUser, Provider
+from .models import AdminUser, Provider, SubscriptionPlan
 
 # Registry of providers the platform knows about. bedrock + mock enabled by
 # default so the end-to-end flow works with zero cloud credentials.
@@ -29,9 +29,52 @@ DEFAULT_PROVIDERS = [
 ]
 
 
+# Starter plans so a fresh deploy can assign subscriptions / create KBs out of the
+# box. ``stacks`` is a list of {stack, monthly_cost} — the stacks present are the
+# ones the plan allows; the free local stacks (pgvector, chroma) cost 0. Admins can
+# edit these or add more from the Subscriptions UI. Seeded only when no plan exists,
+# so admin edits are never overwritten on restart.
+DEFAULT_PLANS = [
+    {
+        "name": "Starter",
+        "description": "Self-serve, locally-runnable vector stores to get started.",
+        "stacks": [
+            {"stack": "pgvector", "monthly_cost": 0},
+            {"stack": "chroma", "monthly_cost": 0},
+        ],
+    },
+    {
+        "name": "Professional",
+        "description": "Managed cloud vector stores for production workloads.",
+        "stacks": [
+            {"stack": "pgvector", "monthly_cost": 0},
+            {"stack": "chroma", "monthly_cost": 0},
+            {"stack": "pinecone", "monthly_cost": 49},
+            {"stack": "weaviate", "monthly_cost": 49},
+            {"stack": "mongodb", "monthly_cost": 59},
+        ],
+    },
+    {
+        "name": "Enterprise",
+        "description": "Every vector store, including AWS Bedrock KB, OpenSearch and neo4j.",
+        "stacks": [
+            {"stack": "pgvector", "monthly_cost": 0},
+            {"stack": "chroma", "monthly_cost": 0},
+            {"stack": "pinecone", "monthly_cost": 49},
+            {"stack": "weaviate", "monthly_cost": 49},
+            {"stack": "mongodb", "monthly_cost": 59},
+            {"stack": "bedrock", "monthly_cost": 99},
+            {"stack": "opensearch", "monthly_cost": 89},
+            {"stack": "neo4j", "monthly_cost": 79},
+        ],
+    },
+]
+
+
 def seed(session: Session) -> None:
     _seed_admin(session)
     _seed_providers(session)
+    _seed_subscription_plans(session)
     session.commit()
 
 
@@ -52,3 +95,12 @@ def _seed_providers(session: Session) -> None:
     for p in DEFAULT_PROVIDERS:
         if p["key"] not in existing_keys:
             session.add(Provider(**p, config={}))
+
+
+def _seed_subscription_plans(session: Session) -> None:
+    # Add any starter plan that isn't already present (matched by unique name), so
+    # custom plans and edits to seeded ones survive restarts.
+    existing_names = set(session.scalars(select(SubscriptionPlan.name)).all())
+    for plan in DEFAULT_PLANS:
+        if plan["name"] not in existing_names:
+            session.add(SubscriptionPlan(**plan, status="active"))

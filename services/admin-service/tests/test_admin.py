@@ -598,6 +598,20 @@ def test_subscriptions_crud_assign_and_report():
         assert client.get("/admin/subscriptions").status_code == 401
 
 
+def test_default_subscription_plans_seeded():
+    """A fresh deploy ships starter plans so customers can be assigned out of the box."""
+    with TestClient(app) as client:
+        h = {"Authorization": f"Bearer {_login(client)}"}
+        plans = {p["name"]: p for p in client.get("/admin/subscriptions", headers=h).json()}
+        assert {"Starter", "Professional", "Enterprise"} <= set(plans)
+        # Enterprise includes every tech stack; Starter is the free local pair.
+        assert {s["stack"] for s in plans["Starter"]["stacks"]} == {"pgvector", "chroma"}
+        assert "bedrock" in {s["stack"] for s in plans["Enterprise"]["stacks"]}
+        # pgvector is priced at 0 (locally runnable) in the seeded plans.
+        pg = next(s for s in plans["Professional"]["stacks"] if s["stack"] == "pgvector")
+        assert pg["monthly_cost"] == 0
+
+
 def test_login_rejects_bad_password():
     with TestClient(app) as client:
         r = client.post(
