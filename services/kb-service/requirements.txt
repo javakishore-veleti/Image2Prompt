@@ -1,10 +1,13 @@
-# Core deps (fastapi, sqlalchemy, httpx, pydantic) come from the shared lib.
-# Embeddings use boto3 (installed in the Dockerfile) and degrade to a local
-# embedder when unavailable. Vector-store SDKs are optional and lazily imported
-# only when that tech stack is selected; install per deploy target, e.g.:
-#   chromadb>=0.5        # chroma stack
-#   pinecone-client>=5   # pinecone stack
-#   weaviate-client>=4   # weaviate stack
-#   pymongo>=4.8         # mongodb (Atlas Vector Search)
-#   neo4j>=5             # neo4j vector index
-#   opensearch-py>=2.6   # opensearch
+# Core deps (fastapi, sqlalchemy, httpx, pydantic) come from the shared lib;
+# boto3 (Bedrock embeddings + Bedrock KB) is installed in the Dockerfile.
+#
+# Vector-store SDKs below are lazily imported only when that tech stack is
+# selected, so a missing one degrades gracefully (backend_ready=false). They are
+# installed in the CLOUD image (this file is only pip-installed by the Dockerfile);
+# local dev installs just ./services/shared + boto3, so these don't affect it.
+chromadb>=0.5            # chroma stack
+opensearch-py>=2.6       # opensearch (AWS) stack
+pymongo>=4.8             # mongodb (Atlas Vector Search) stack
+neo4j>=5                 # neo4j vector-index stack
+pinecone>=5              # pinecone serverless stack
+weaviate-client>=4       # weaviate stack
