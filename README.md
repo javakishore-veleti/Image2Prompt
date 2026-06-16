@@ -62,7 +62,9 @@ a customer's generated prompts into searchable, per-project knowledge bases.
 
 **Hierarchy:** Customer → Project → **KB Group** → **Project KB** (one per tech stack).
 A customer picks which generated prompts to ingest; the KB embeds *instruction + prompt +
-metadata* and supports semantic search.
+metadata* and supports semantic search. Ingestion can run **synchronously** or as a
+**background job** (`POST /kbs/{id}/ingest-async` → poll `…/ingest-jobs/{job_id}`) so
+large batches don't block.
 
 **Pluggable vector stores (8 tech stacks).** Each is lazily wired to its SDK, gated by
 config, and **degrades to an in-process index** when unconfigured (so the flow always
@@ -85,9 +87,14 @@ provisioned backend never leaks data or keeps counting toward billing.
 
 **Subscriptions (admin-defined).** The **admin portal → Subscriptions** menu creates
 plans that both *gate* which tech stacks a customer may use and *price* each
-(`stacks: [{stack, monthly_cost}]`). A fresh deploy seeds **Starter / Professional /
-Enterprise**. Admins assign a plan to a customer; `kb-service` enforces the gate at
-KB-create time via `admin-service /internal/subscriptions/customer/{id}`.
+(`stacks: [{stack, monthly_cost}]`), plus per-plan **quotas** (`max_kbs`,
+`max_docs_per_kb`; blank = unlimited). A fresh deploy seeds **Starter / Professional /
+Enterprise**. Admins assign a plan to a customer; `kb-service` enforces the stack gate
+*and* the quotas (KB creation 403s over `max_kbs`; ingest stops at `max_docs_per_kb`)
+via `admin-service /internal/subscriptions/customer/{id}`. The customer's KB picker is
+scoped to the plan's allowed stacks (`kb-service GET /my-subscription`). The admin
+Subscriptions page also shows a **contracted-MRR rollup** (active subscribers × plan
+list price) at `GET /admin/subscriptions/revenue`.
 
 **Billing (Stripe).** `kb-service` exposes per-stack usage at
 `/internal/usage/customer/{id}`; `customer-service` computes the monthly charge as
