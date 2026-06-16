@@ -42,6 +42,8 @@ DEFAULT_PLANS = [
             {"stack": "pgvector", "monthly_cost": 0},
             {"stack": "chroma", "monthly_cost": 0},
         ],
+        "max_kbs": 3,
+        "max_docs_per_kb": 100,
     },
     {
         "name": "Professional",
@@ -53,6 +55,8 @@ DEFAULT_PLANS = [
             {"stack": "weaviate", "monthly_cost": 49},
             {"stack": "mongodb", "monthly_cost": 59},
         ],
+        "max_kbs": 25,
+        "max_docs_per_kb": 5000,
     },
     {
         "name": "Enterprise",
@@ -67,6 +71,8 @@ DEFAULT_PLANS = [
             {"stack": "opensearch", "monthly_cost": 89},
             {"stack": "neo4j", "monthly_cost": 79},
         ],
+        "max_kbs": None,  # unlimited
+        "max_docs_per_kb": None,
     },
 ]
 

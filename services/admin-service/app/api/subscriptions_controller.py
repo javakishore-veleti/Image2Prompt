@@ -16,6 +16,7 @@ from ..dtos.internal_dtos import (
     ListActiveSubscriptionsReq,
     ListPlanCustomersReq,
     ListPlansReq,
+    RevenueRollupReq,
     UpdatePlanReq,
 )
 from ..facades.interfaces import ISubscriptionsFacade
@@ -62,10 +63,23 @@ def create_plan(
             CreatePlanReq(
                 db=db, name=payload.name, description=payload.description, status=payload.status,
                 stacks=[s.model_dump() for s in payload.stacks],
+                max_kbs=payload.max_kbs, max_docs_per_kb=payload.max_docs_per_kb,
                 actor_id=principal.id, actor_email=principal.email,
             )
         )
     ).plan
+
+
+@router.get("/revenue")
+def revenue(
+    _=Depends(current_admin),
+    db: Session = Depends(get_db),
+    facade: ISubscriptionsFacade = Depends(get_subscriptions_facade),
+):
+    """Contracted MRR rollup: per plan, (active subscribers × plan list price).
+    List/contracted revenue — not usage-adjusted billed revenue."""
+    resp = ensure_ok(facade.revenue_rollup(RevenueRollupReq(db=db)))
+    return {"total_mrr": resp.total_mrr, "plans": resp.plans}
 
 
 @router.get("/{plan_id}", response_model=PlanOut)
@@ -86,12 +100,16 @@ def update_plan(
     db: Session = Depends(get_db),
     facade: ISubscriptionsFacade = Depends(get_subscriptions_facade),
 ):
+    fields_set = payload.model_fields_set
     return ensure_ok(
         facade.update_plan(
             UpdatePlanReq(
                 db=db, plan_id=plan_id, name=payload.name, description=payload.description,
                 status=payload.status,
                 stacks=[s.model_dump() for s in payload.stacks] if payload.stacks is not None else None,
+                max_kbs=payload.max_kbs, set_max_kbs="max_kbs" in fields_set,
+                max_docs_per_kb=payload.max_docs_per_kb,
+                set_max_docs_per_kb="max_docs_per_kb" in fields_set,
                 actor_id=principal.id, actor_email=principal.email,
             )
         )
@@ -156,4 +174,6 @@ def customer_subscription(
         plan_name=resp.plan.name,
         status=resp.subscription.status,
         stacks=resp.plan.stacks or [],
+        max_kbs=resp.plan.max_kbs,
+        max_docs_per_kb=resp.plan.max_docs_per_kb,
     )

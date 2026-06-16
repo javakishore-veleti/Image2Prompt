@@ -121,6 +121,8 @@ class PlanCreate(BaseModel):
     description: str | None = None
     status: str = "active"
     stacks: list[StackPrice] = []
+    max_kbs: int | None = None  # None = unlimited
+    max_docs_per_kb: int | None = None
 
 
 class PlanUpdate(BaseModel):
@@ -128,6 +130,8 @@ class PlanUpdate(BaseModel):
     description: str | None = None
     status: str | None = None
     stacks: list[StackPrice] | None = None
+    max_kbs: int | None = None
+    max_docs_per_kb: int | None = None
 
 
 class PlanOut(BaseModel):
@@ -137,6 +141,8 @@ class PlanOut(BaseModel):
     description: str | None = None
     status: str
     stacks: list[dict[str, Any]] = []
+    max_kbs: int | None = None
+    max_docs_per_kb: int | None = None
 
 
 class AssignSubscription(BaseModel):
@@ -161,6 +167,8 @@ class CustomerSubscriptionView(BaseModel):
     plan_name: str | None = None
     status: str | None = None
     stacks: list[dict[str, Any]] = []  # allowed stacks + cost
+    max_kbs: int | None = None  # NULL = unlimited
+    max_docs_per_kb: int | None = None
 
 
 class CspSummaryItem(BaseModel):

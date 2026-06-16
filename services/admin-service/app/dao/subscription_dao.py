@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 
 from image2prompt_shared.layers import BaseDao
 from image2prompt_shared.observability import observe
@@ -16,6 +16,8 @@ from ..dtos.internal_dtos import (
     ListPlansReq,
     PlanListResp,
     PlanResp,
+    RevenueRollupReq,
+    RevenueRollupResp,
     SubscriptionListResp,
     SubscriptionResp,
     UpdatePlanReq,
@@ -30,7 +32,8 @@ class SubscriptionDao(BaseDao):
         if req.db.scalar(select(SubscriptionPlan).where(SubscriptionPlan.name == req.name)):
             return PlanResp.failure(error_code="conflict", error_message="Plan name already exists")
         plan = SubscriptionPlan(
-            name=req.name, description=req.description, status=req.status, stacks=req.stacks or []
+            name=req.name, description=req.description, status=req.status, stacks=req.stacks or [],
+            max_kbs=req.max_kbs, max_docs_per_kb=req.max_docs_per_kb,
         )
         req.db.add(plan)
         req.db.flush()
@@ -49,6 +52,10 @@ class SubscriptionDao(BaseDao):
             plan.status = req.status
         if req.stacks is not None:
             plan.stacks = req.stacks
+        if req.set_max_kbs:
+            plan.max_kbs = req.max_kbs
+        if req.set_max_docs_per_kb:
+            plan.max_docs_per_kb = req.max_docs_per_kb
         req.db.flush()
         return PlanResp(plan=plan)
 
@@ -99,6 +106,31 @@ class SubscriptionDao(BaseDao):
             )
         stmt = stmt.order_by(CustomerSubscription.created_at.desc())
         return SubscriptionListResp(subscriptions=list(req.db.scalars(stmt).all()))
+
+    @observe("SubscriptionDao.revenue_rollup")
+    def revenue_rollup(self, req: RevenueRollupReq) -> RevenueRollupResp:
+        """Contracted MRR per plan = (active subscribers) × (plan list price), where
+        plan list price = sum of the plan's per-stack monthly costs. This is
+        contracted/list revenue, not usage-adjusted billed revenue."""
+        counts = dict(
+            req.db.execute(
+                select(CustomerSubscription.plan_id, func.count(CustomerSubscription.id))
+                .where(CustomerSubscription.status == "active")
+                .group_by(CustomerSubscription.plan_id)
+            ).all()
+        )
+        rows = []
+        total = 0.0
+        for plan in req.db.scalars(select(SubscriptionPlan).order_by(SubscriptionPlan.name)).all():
+            price = float(sum((s.get("monthly_cost") or 0) for s in (plan.stacks or [])))
+            customers = int(counts.get(plan.id, 0))
+            mrr = round(price * customers, 2)
+            total += mrr
+            rows.append(
+                {"plan_id": plan.id, "plan_name": plan.name, "customers": customers,
+                 "plan_price": round(price, 2), "mrr": mrr}
+            )
+        return RevenueRollupResp(total_mrr=round(total, 2), plans=rows)
 
     @observe("SubscriptionDao.list_active_subscriptions")
     def list_active_subscriptions(self, req: ListActiveSubscriptionsReq) -> ActiveSubscriptionListResp:

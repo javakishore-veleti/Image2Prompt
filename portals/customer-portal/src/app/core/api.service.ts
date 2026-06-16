@@ -100,6 +100,16 @@ export interface KbResult {
   project_id: string | null;
 }
 
+export interface KbIngestJob {
+  id: string;
+  kb_id: string;
+  status: string;
+  requested: number;
+  ingested: number;
+  skipped: number;
+  error: string | null;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   private customer = `${environment.gatewayUrl}/api/customer`;
@@ -111,6 +121,16 @@ export class ApiService {
   // --- Knowledge Bank (Project KB) ---
   kbTechStacks(): Observable<string[]> {
     return this.http.get<string[]>(`${this.kb}/tech-stacks`);
+  }
+  myKbSubscription(): Observable<{
+    has_subscription: boolean;
+    plan_name: string | null;
+    stacks: string[];
+    max_kbs: number | null;
+    max_docs_per_kb: number | null;
+    gating_enabled: boolean;
+  }> {
+    return this.http.get<any>(`${this.kb}/my-subscription`);
   }
   kbGroups(projectId: string): Observable<KbGroup[]> {
     return this.http.get<KbGroup[]>(`${this.kb}/groups`, { params: new HttpParams().set('project_id', projectId) });
@@ -126,6 +146,12 @@ export class ApiService {
   }
   kbDocuments(kbId: string): Observable<KbDoc[]> {
     return this.http.get<KbDoc[]>(`${this.kb}/kbs/${kbId}/documents`);
+  }
+  ingestKbAsync(kbId: string, generationIds: string[]): Observable<KbIngestJob> {
+    return this.http.post<KbIngestJob>(`${this.kb}/kbs/${kbId}/ingest-async`, { generation_ids: generationIds });
+  }
+  ingestJob(kbId: string, jobId: string): Observable<KbIngestJob> {
+    return this.http.get<KbIngestJob>(`${this.kb}/kbs/${kbId}/ingest-jobs/${jobId}`);
   }
   ingestKb(kbId: string, generationIds: string[]): Observable<{ ingested: number; skipped: number; doc_count: number }> {
     return this.http.post<{ ingested: number; skipped: number; doc_count: number }>(

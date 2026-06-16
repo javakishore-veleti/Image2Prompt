@@ -14,6 +14,19 @@ import { ApiService, KbGroup, KbResult, ProjectKb, PromptItem } from '../core/ap
       tech stack (allowed by your subscription), then ingest the prompts you choose and search them.
     </p>
 
+    <div class="card sub" *ngIf="sub() as s">
+      <ng-container *ngIf="s.has_subscription; else noSub">
+        <strong>{{ s.plan_name }}</strong> plan ·
+        stacks: <span class="mono">{{ s.stacks.join(', ') }}</span>
+        <span *ngIf="s.max_kbs != null"> · up to {{ s.max_kbs }} KBs</span>
+        <span *ngIf="s.max_docs_per_kb != null"> · {{ s.max_docs_per_kb }} docs/KB</span>
+      </ng-container>
+      <ng-template #noSub>
+        <span class="muted" *ngIf="s.gating_enabled">No active subscription — ask an admin to assign a plan to create KBs.</span>
+        <span class="muted" *ngIf="!s.gating_enabled">Subscription gating is off (dev): all tech stacks available.</span>
+      </ng-template>
+    </div>
+
     <div class="card">
       <div class="field">
         <label>Project</label>
@@ -79,9 +92,14 @@ import { ApiService, KbGroup, KbResult, ProjectKb, PromptItem } from '../core/ap
           </label>
           <p class="muted" *ngIf="uniquePrompts().length === 0">No prompts yet — generate some first.</p>
         </div>
-        <button (click)="ingest()" [disabled]="selected.size === 0 || busy()">
-          {{ busy() ? 'Ingesting…' : 'Ingest ' + selected.size + ' selected' }}
-        </button>
+        <div class="row">
+          <button (click)="ingest()" [disabled]="selected.size === 0 || busy()">
+            {{ busy() ? 'Ingesting…' : 'Ingest ' + selected.size + ' selected' }}
+          </button>
+          <button class="ghost" (click)="ingestAsync()" [disabled]="selected.size === 0 || busy()">
+            Ingest in background
+          </button>
+        </div>
         <span class="ok small" *ngIf="ingestMsg()">{{ ingestMsg() }}</span>
 
         <h4>Search this KB</h4>
@@ -101,6 +119,7 @@ import { ApiService, KbGroup, KbResult, ProjectKb, PromptItem } from '../core/ap
   `,
   styles: [
     `
+      .sub { font-size: 13px; }
       .hrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
       .danger { background: transparent; color: #c0392b; border: 1px solid #c0392b; border-radius: 8px; padding: 4px 10px; }
       .danger:hover { background: #c0392b; color: #fff; }
@@ -129,6 +148,14 @@ export class KnowledgeBankComponent {
 
   projects = signal<{ id: string; name: string }[]>([]);
   stacks = signal<string[]>([]);
+  sub = signal<{
+    has_subscription: boolean;
+    plan_name: string | null;
+    stacks: string[];
+    max_kbs: number | null;
+    max_docs_per_kb: number | null;
+    gating_enabled: boolean;
+  } | null>(null);
   groups = signal<KbGroup[]>([]);
   group = signal<KbGroup | null>(null);
   kbs = signal<ProjectKb[]>([]);
@@ -154,7 +181,16 @@ export class KnowledgeBankComponent {
 
   constructor() {
     this.api.projects().subscribe({ next: (p) => this.projects.set(p), error: () => {} });
-    this.api.kbTechStacks().subscribe({ next: (s) => this.stacks.set(s), error: () => {} });
+    this.api.myKbSubscription().subscribe({
+      next: (s) => {
+        this.sub.set(s);
+        this.stacks.set(s.stacks ?? []);
+      },
+      error: () => {
+        // fall back to the full catalog if the subscription lookup is unavailable
+        this.api.kbTechStacks().subscribe({ next: (st) => this.stacks.set(st), error: () => {} });
+      },
+    });
   }
 
   onProject(): void {
@@ -256,6 +292,57 @@ export class KnowledgeBankComponent {
       error: () => {
         this.busy.set(false);
         this.ingestMsg.set('Ingest failed.');
+      },
+    });
+  }
+
+  ingestAsync(): void {
+    const k = this.kb();
+    if (!k || this.selected.size === 0) return;
+    this.busy.set(true);
+    this.ingestMsg.set('Queued…');
+    this.api.ingestKbAsync(k.id, Array.from(this.selected)).subscribe({
+      next: (job) => {
+        this.selected.clear();
+        this.pollJob(k.id, job.id);
+      },
+      error: () => {
+        this.busy.set(false);
+        this.ingestMsg.set('Ingest failed.');
+      },
+    });
+  }
+
+  private pollJob(kbId: string, jobId: string): void {
+    this.api.ingestJob(kbId, jobId).subscribe({
+      next: (job) => {
+        if (job.status === 'done') {
+          this.busy.set(false);
+          this.ingestMsg.set(`Background ingest done: ${job.ingested} added, ${job.skipped} skipped.`);
+          this.refreshKbs(kbId);
+        } else if (job.status === 'error') {
+          this.busy.set(false);
+          this.ingestMsg.set('Background ingest failed: ' + (job.error ?? ''));
+        } else {
+          this.ingestMsg.set(`Background ingest ${job.status}…`);
+          setTimeout(() => this.pollJob(kbId, jobId), 1500);
+        }
+      },
+      error: () => {
+        this.busy.set(false);
+        this.ingestMsg.set('Lost track of the background job.');
+      },
+    });
+  }
+
+  private refreshKbs(kbId: string): void {
+    const g = this.group();
+    if (!g) return;
+    this.api.kbs(g.id).subscribe({
+      next: (kbs) => {
+        this.kbs.set(kbs);
+        const cur = this.kb();
+        if (cur) this.kb.set(kbs.find((x) => x.id === kbId) ?? cur);
       },
     });
   }

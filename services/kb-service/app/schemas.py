@@ -57,6 +57,17 @@ class IngestOut(BaseModel):
     doc_count: int
 
 
+class IngestJobOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    kb_id: str
+    status: str
+    requested: int
+    ingested: int
+    skipped: int
+    error: str | None = None
+
+
 class QueryRequest(BaseModel):
     query: str
     top_k: int = 5

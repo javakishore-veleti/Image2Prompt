@@ -8,11 +8,14 @@ from image2prompt_shared.observability import observe
 from ..dtos.internal_dtos import (
     AddDocReq,
     CreateGroupReq,
+    CreateIngestJobReq,
     CreateKbReq,
     DocListResp,
+    GetIngestJobReq,
     GetKbReq,
     GroupListResp,
     GroupResp,
+    IngestJobResp,
     KbListResp,
     KbResp,
     ListDocsReq,
@@ -21,7 +24,7 @@ from ..dtos.internal_dtos import (
     UsageReq,
     UsageResp,
 )
-from ..models import KbDocument, KbGroup, ProjectKb
+from ..models import KbDocument, KbGroup, KbIngestJob, ProjectKb
 
 
 class KbDao(BaseDao):
@@ -61,6 +64,11 @@ class KbDao(BaseDao):
         if req.group_id:
             stmt = stmt.where(ProjectKb.group_id == req.group_id)
         return KbListResp(kbs=list(req.db.scalars(stmt.order_by(ProjectKb.created_at.desc())).all()))
+
+    def count_kbs(self, db, customer_id: str) -> int:
+        return int(db.scalar(
+            select(func.count(ProjectKb.id)).where(ProjectKb.customer_id == customer_id)
+        ) or 0)
 
     @observe("KbDao.get_kb")
     def get_kb(self, req: GetKbReq) -> KbResp:
@@ -115,6 +123,27 @@ class KbDao(BaseDao):
                 KbDocument.kb_id == kb_id, KbDocument.generation_id == generation_id
             )
         )
+
+    # --- async ingestion jobs ---
+    @observe("KbDao.create_ingest_job")
+    def create_ingest_job(self, req: CreateIngestJobReq) -> IngestJobResp:
+        job = KbIngestJob(
+            kb_id=req.kb_id, customer_id=req.customer_id, status="pending",
+            requested_ids=list(req.generation_ids or []), requested=len(req.generation_ids or []),
+        )
+        req.db.add(job)
+        req.db.flush()
+        return IngestJobResp(job=job)
+
+    @observe("KbDao.get_ingest_job")
+    def get_ingest_job(self, req: GetIngestJobReq) -> IngestJobResp:
+        job = req.db.get(KbIngestJob, req.job_id)
+        if job is None or job.customer_id != req.customer_id or job.kb_id != req.kb_id:
+            return IngestJobResp.failure(error_code="not_found", error_message="Ingest job not found")
+        return IngestJobResp(job=job)
+
+    def get_ingest_job_by_id(self, db, job_id: str) -> KbIngestJob | None:
+        return db.get(KbIngestJob, job_id)
 
     # --- usage (billing) ---
     @observe("KbDao.usage_by_customer")

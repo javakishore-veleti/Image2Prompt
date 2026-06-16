@@ -131,6 +131,32 @@ def test_unconfigured_cloud_store_degrades(monkeypatch):
         assert res["results"] and res["results"][0]["generation_id"] == "g1"
 
 
+def test_async_ingest_job(monkeypatch):
+    """Async ingest queues a background job; polling shows it completed and the
+    documents landed (TestClient runs background tasks before returning)."""
+    async def _resolve(customer_id, ids):
+        return [g for g in _FAKE_GENS if g["id"] in ids]
+
+    monkeypatch.setattr(_generation_client, "resolve", _resolve)
+
+    with TestClient(app) as client:
+        h = _auth("async-cust")
+        g = client.post("/groups", json={"project_id": "pa", "name": "G"}, headers=h).json()
+        kb = client.post(
+            "/kbs", json={"group_id": g["id"], "project_id": "pa", "name": "K", "tech_stack": "pgvector"}, headers=h
+        ).json()
+        r = client.post(f"/kbs/{kb['id']}/ingest-async", json={"generation_ids": ["g1", "g2"]}, headers=h)
+        assert r.status_code == 202
+        job = r.json()
+        assert job["requested"] == 2 and job["status"] in ("pending", "running", "done")
+
+        status = client.get(f"/kbs/{kb['id']}/ingest-jobs/{job['id']}", headers=h).json()
+        assert status["status"] == "done" and status["ingested"] == 2 and status["skipped"] == 0
+        assert len(client.get(f"/kbs/{kb['id']}/documents", headers=h).json()) == 2
+        # another customer can't read the job
+        assert client.get(f"/kbs/{kb['id']}/ingest-jobs/{job['id']}", headers=_auth("nosy")).status_code == 404
+
+
 def test_delete_kb_removes_docs_vectors_and_usage(monkeypatch):
     """Deleting a KB purges its documents + vectors and drops it from usage."""
     async def _resolve(customer_id, ids):
@@ -225,3 +251,65 @@ def test_subscription_gating(monkeypatch):
         # disallowed stack -> 403
         no = client.post("/kbs", json={"group_id": g["id"], "project_id": "p9", "name": "no", "tech_stack": "pinecone"}, headers=h)
         assert no.status_code == 403
+
+
+def test_plan_quota_caps_kb_count(monkeypatch):
+    monkeypatch.setattr(cfg, "kb_require_subscription", True)
+    from app.di import _subscription_client
+
+    async def _sub(_cid):
+        return {"has_subscription": True, "plan_name": "Starter",
+                "stacks": [{"stack": "pgvector", "monthly_cost": 0}], "max_kbs": 1}
+
+    monkeypatch.setattr(_subscription_client, "get_customer_subscription", _sub)
+
+    with TestClient(app) as client:
+        h = _auth("cap-kbs")
+        g = client.post("/groups", json={"project_id": "pq", "name": "G"}, headers=h).json()
+        body = {"group_id": g["id"], "project_id": "pq", "name": "k", "tech_stack": "pgvector"}
+        assert client.post("/kbs", json={**body, "name": "k1"}, headers=h).status_code == 201
+        # second KB exceeds the plan's max_kbs=1 -> 403
+        over = client.post("/kbs", json={**body, "name": "k2"}, headers=h)
+        assert over.status_code == 403 and "limit" in over.json()["detail"].lower()
+
+
+def test_plan_quota_caps_docs_per_kb(monkeypatch):
+    monkeypatch.setattr(cfg, "kb_require_subscription", True)
+    from app.di import _subscription_client
+
+    async def _sub(_cid):
+        return {"has_subscription": True, "plan_name": "Starter",
+                "stacks": [{"stack": "pgvector", "monthly_cost": 0}], "max_docs_per_kb": 1}
+
+    async def _resolve(customer_id, ids):
+        return [g for g in _FAKE_GENS if g["id"] in ids]
+
+    monkeypatch.setattr(_subscription_client, "get_customer_subscription", _sub)
+    monkeypatch.setattr(_generation_client, "resolve", _resolve)
+
+    with TestClient(app) as client:
+        h = _auth("cap-docs")
+        g = client.post("/groups", json={"project_id": "pqd", "name": "G"}, headers=h).json()
+        kb = client.post(
+            "/kbs", json={"group_id": g["id"], "project_id": "pqd", "name": "k", "tech_stack": "pgvector"}, headers=h
+        ).json()
+        # plan caps docs at 1: ingest of 2 generations ingests 1, skips the rest
+        ing = client.post(f"/kbs/{kb['id']}/ingest", json={"generation_ids": ["g1", "g2"]}, headers=h).json()
+        assert ing["ingested"] == 1 and ing["skipped"] == 1 and ing["doc_count"] == 1
+
+
+def test_my_subscription_scopes_allowed_stacks(monkeypatch):
+    monkeypatch.setattr(cfg, "kb_require_subscription", True)
+    from app.di import _subscription_client
+
+    async def _sub(_cid):
+        return {"has_subscription": True, "plan_name": "Professional", "max_kbs": 25,
+                "stacks": [{"stack": "pgvector", "monthly_cost": 0}, {"stack": "pinecone", "monthly_cost": 49}]}
+
+    monkeypatch.setattr(_subscription_client, "get_customer_subscription", _sub)
+
+    with TestClient(app) as client:
+        h = _auth("mysub")
+        sub = client.get("/my-subscription", headers=h).json()
+        assert sub["has_subscription"] is True and sub["plan_name"] == "Professional"
+        assert set(sub["stacks"]) == {"pgvector", "pinecone"} and sub["max_kbs"] == 25

@@ -81,6 +81,9 @@ class ISubscriptionsFacade(ABC):
         self, req: "dto.ListActiveSubscriptionsReq"
     ) -> "dto.ActiveSubscriptionListResp": ...
 
+    @abstractmethod
+    def revenue_rollup(self, req: "dto.RevenueRollupReq") -> "dto.RevenueRollupResp": ...
+
 
 class IMaintenanceFacade(ABC):
     @abstractmethod

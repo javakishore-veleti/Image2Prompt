@@ -60,6 +60,9 @@ class SubscriptionPlan(Base, UUIDPkMixin, TimestampMixin):
     description: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     status: Mapped[str] = mapped_column(String(50), default="active")
     stacks: Mapped[list] = mapped_column(JSON, default=list)
+    # Per-plan quotas (NULL = unlimited). Enforced by kb-service at create/ingest.
+    max_kbs: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    max_docs_per_kb: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
 
 class CustomerSubscription(Base, UUIDPkMixin, TimestampMixin):

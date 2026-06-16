@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from image2prompt_shared.dtos import BaseReq, BaseResp
 
-from ..models import KbDocument, KbGroup, ProjectKb
+from ..models import KbDocument, KbGroup, KbIngestJob, ProjectKb
 
 
 # --- KB groups ---
@@ -89,6 +89,34 @@ class IngestResp(BaseResp):
     doc_count: int = 0
 
 
+# --- async ingestion jobs ---
+@dataclass(kw_only=True)
+class CreateIngestJobReq(BaseReq):
+    db: Session
+    customer_id: str
+    kb_id: str
+    generation_ids: list[str] = field(default_factory=list)
+
+
+@dataclass(kw_only=True)
+class GetIngestJobReq(BaseReq):
+    db: Session
+    customer_id: str
+    kb_id: str
+    job_id: str
+
+
+@dataclass(kw_only=True)
+class RunIngestJobReq(BaseReq):
+    db: Session
+    job_id: str
+
+
+@dataclass(kw_only=True)
+class IngestJobResp(BaseResp):
+    job: Optional[KbIngestJob] = None
+
+
 @dataclass(kw_only=True)
 class QueryReq(BaseReq):
     db: Session
@@ -123,6 +151,23 @@ class AddDocReq(BaseReq):
     generation_id: str
     title: Optional[str] = None
     meta: dict = field(default_factory=dict)
+
+
+# --- my subscription (drives the customer's allowed tech-stack picker) ---
+@dataclass(kw_only=True)
+class MySubscriptionReq(BaseReq):
+    db: Session
+    customer_id: str
+
+
+@dataclass(kw_only=True)
+class MySubscriptionResp(BaseResp):
+    has_subscription: bool = False
+    plan_name: Optional[str] = None
+    stacks: list[str] = field(default_factory=list)  # allowed stack keys
+    max_kbs: Optional[int] = None
+    max_docs_per_kb: Optional[int] = None
+    gating_enabled: bool = True
 
 
 # --- delete / lifecycle ---

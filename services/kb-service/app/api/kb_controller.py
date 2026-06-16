@@ -1,30 +1,36 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from sqlalchemy.orm import Session
 
 from image2prompt_shared.api_errors import ensure_ok
 from image2prompt_shared.auth_dep import Principal
 
+from ..db import db as _db
 from ..deps import current_customer, get_db
 from ..di import get_kb_facade
 from ..dtos.internal_dtos import (
     CreateGroupReq,
+    CreateIngestJobReq,
     CreateKbReq,
     DeleteGroupReq,
     DeleteKbReq,
+    GetIngestJobReq,
     GetKbReq,
     IngestReq,
     ListDocsReq,
     ListGroupsReq,
     ListKbsReq,
+    MySubscriptionReq,
     QueryReq,
+    RunIngestJobReq,
 )
 from ..facades.interfaces import IKbFacade
 from ..schemas import (
     DocOut,
     GroupCreate,
     GroupOut,
+    IngestJobOut,
     IngestOut,
     IngestRequest,
     KbCreate,
@@ -34,12 +40,36 @@ from ..schemas import (
 )
 from ..tech_stacks import TECH_STACKS
 
+
+async def _run_ingest_job(job_id: str) -> None:
+    """Background worker — own DB session, delegates to the facade (fail-safe)."""
+    with _db.SessionLocal() as session:
+        await get_kb_facade().run_ingest_job(RunIngestJobReq(db=session, job_id=job_id))
+
 router = APIRouter(tags=["kb"])
 
 
 @router.get("/tech-stacks", response_model=list[str])
 def tech_stacks(_: Principal = Depends(current_customer)):
     return TECH_STACKS
+
+
+@router.get("/my-subscription")
+async def my_subscription(
+    principal: Principal = Depends(current_customer),
+    db: Session = Depends(get_db),
+    facade: IKbFacade = Depends(get_kb_facade),
+):
+    """The current customer's allowed tech stacks + quotas — scopes the KB picker."""
+    resp = ensure_ok(await facade.my_subscription(MySubscriptionReq(db=db, customer_id=principal.id)))
+    return {
+        "has_subscription": resp.has_subscription,
+        "plan_name": resp.plan_name,
+        "stacks": resp.stacks,
+        "max_kbs": resp.max_kbs,
+        "max_docs_per_kb": resp.max_docs_per_kb,
+        "gating_enabled": resp.gating_enabled,
+    }
 
 
 # --- groups ---
@@ -155,6 +185,42 @@ async def ingest(
         )
     )
     return IngestOut(ingested=resp.ingested, skipped=resp.skipped, doc_count=resp.doc_count)
+
+
+@router.post("/kbs/{kb_id}/ingest-async", response_model=IngestJobOut, status_code=202)
+def ingest_async(
+    kb_id: str,
+    payload: IngestRequest,
+    background: BackgroundTasks,
+    principal: Principal = Depends(current_customer),
+    db: Session = Depends(get_db),
+    facade: IKbFacade = Depends(get_kb_facade),
+):
+    """Queue a background ingest and return a job to poll. Large batches don't block."""
+    job = ensure_ok(
+        facade.create_ingest_job(
+            CreateIngestJobReq(
+                db=db, customer_id=principal.id, kb_id=kb_id, generation_ids=payload.generation_ids
+            )
+        )
+    ).job
+    background.add_task(_run_ingest_job, job.id)
+    return job
+
+
+@router.get("/kbs/{kb_id}/ingest-jobs/{job_id}", response_model=IngestJobOut)
+def ingest_job(
+    kb_id: str,
+    job_id: str,
+    principal: Principal = Depends(current_customer),
+    db: Session = Depends(get_db),
+    facade: IKbFacade = Depends(get_kb_facade),
+):
+    return ensure_ok(
+        facade.get_ingest_job(
+            GetIngestJobReq(db=db, customer_id=principal.id, kb_id=kb_id, job_id=job_id)
+        )
+    ).job
 
 
 @router.post("/kbs/{kb_id}/query", response_model=QueryOut)

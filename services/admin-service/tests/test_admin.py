@@ -598,6 +598,55 @@ def test_subscriptions_crud_assign_and_report():
         assert client.get("/admin/subscriptions").status_code == 401
 
 
+def test_plan_quotas_persist_and_surface_internally():
+    """Per-plan quotas (max_kbs / max_docs_per_kb) round-trip and reach kb-service
+    via the internal subscription view."""
+    with TestClient(app) as client:
+        h = {"Authorization": f"Bearer {_login(client)}"}
+        plan = client.post(
+            "/admin/subscriptions",
+            json={
+                "name": "Capped",
+                "stacks": [{"stack": "pgvector", "monthly_cost": 0}],
+                "max_kbs": 3, "max_docs_per_kb": 100,
+            },
+            headers=h,
+        ).json()
+        assert plan["max_kbs"] == 3 and plan["max_docs_per_kb"] == 100
+        # PATCH to unlimited (explicit null) clears the cap
+        upd = client.patch(f"/admin/subscriptions/{plan['id']}", json={"max_kbs": None}, headers=h).json()
+        assert upd["max_kbs"] is None and upd["max_docs_per_kb"] == 100
+
+        client.post(f"/admin/subscriptions/{plan['id']}/customers",
+                    json={"customer_id": "qc1", "customer_email": "q@acme.io"}, headers=h)
+        view = client.get("/internal/subscriptions/customer/qc1").json()
+        assert view["max_kbs"] is None and view["max_docs_per_kb"] == 100
+
+
+def test_revenue_rollup():
+    """Contracted MRR = active subscribers × plan list price (sum of stack costs)."""
+    with TestClient(app) as client:
+        h = {"Authorization": f"Bearer {_login(client)}"}
+        plan = client.post(
+            "/admin/subscriptions",
+            json={"name": "RevPlan", "stacks": [
+                {"stack": "pgvector", "monthly_cost": 10},
+                {"stack": "pinecone", "monthly_cost": 20},
+            ]},
+            headers=h,
+        ).json()
+        for cid in ("rev1", "rev2"):
+            client.post(f"/admin/subscriptions/{plan['id']}/customers",
+                        json={"customer_id": cid, "customer_email": f"{cid}@acme.io"}, headers=h)
+
+        rollup = client.get("/admin/subscriptions/revenue", headers=h).json()
+        row = next(p for p in rollup["plans"] if p["plan_name"] == "RevPlan")
+        assert row["plan_price"] == 30 and row["customers"] == 2 and row["mrr"] == 60
+        assert rollup["total_mrr"] >= 60
+        # requires auth
+        assert client.get("/admin/subscriptions/revenue").status_code == 401
+
+
 def test_internal_active_subscriptions_list():
     """The scheduled billing sweep in customer-service reads active subscriptions
     (with plan + pricing) from this internal endpoint."""

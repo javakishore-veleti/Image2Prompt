@@ -8,14 +8,17 @@ from ..dao.kb_dao import KbDao
 from ..dtos.internal_dtos import (
     AddDocReq,
     CreateGroupReq,
+    CreateIngestJobReq,
     CreateKbReq,
     DeleteGroupReq,
     DeleteKbReq,
     DeleteResp,
     DocListResp,
+    GetIngestJobReq,
     GetKbReq,
     GroupListResp,
     GroupResp,
+    IngestJobResp,
     IngestReq,
     IngestResp,
     KbListResp,
@@ -23,15 +26,18 @@ from ..dtos.internal_dtos import (
     ListDocsReq,
     ListGroupsReq,
     ListKbsReq,
+    MySubscriptionReq,
+    MySubscriptionResp,
     QueryReq,
     QueryResp,
+    RunIngestJobReq,
     UsageReq,
     UsageResp,
 )
 from ..services.clients import GenerationClient, SubscriptionClient
 from ..services.embedder import Embedder
 from ..services.vectorstores import build_vector_store
-from ..tech_stacks import is_valid_stack
+from ..tech_stacks import TECH_STACKS, is_valid_stack
 from .interfaces import IKbFacade
 
 
@@ -80,7 +86,8 @@ class KbFacade(BaseFacade, IKbFacade):
     async def create_kb(self, req: CreateKbReq) -> KbResp:
         if not is_valid_stack(req.tech_stack):
             return KbResp.failure(error_code="bad_request", error_message=f"unknown tech stack: {req.tech_stack}")
-        # Subscription gating: the customer's plan must include this stack.
+        # Subscription gating: the customer's plan must include this stack, and the
+        # plan's KB quota (if any) must not be exceeded.
         if settings.kb_require_subscription:
             sub = await self.subscription_client.get_customer_subscription(req.customer_id)
             allowed = {s.get("stack") for s in (sub.get("stacks") or [])}
@@ -88,6 +95,12 @@ class KbFacade(BaseFacade, IKbFacade):
                 return KbResp.failure(
                     error_code="forbidden",
                     error_message=f"Your subscription does not include the '{req.tech_stack}' tech stack.",
+                )
+            max_kbs = sub.get("max_kbs")
+            if max_kbs is not None and self.kb_dao.count_kbs(req.db, req.customer_id) >= max_kbs:
+                return KbResp.failure(
+                    error_code="forbidden",
+                    error_message=f"Your plan's limit of {max_kbs} knowledge bases has been reached.",
                 )
         store = build_vector_store(req.tech_stack)
         resp = self.kb_dao.create_kb(req, backend_ready=store.ready())
@@ -118,6 +131,13 @@ class KbFacade(BaseFacade, IKbFacade):
         if not got.success:
             return IngestResp.failure(error_code=got.error_code, error_message=got.error_message)
         kb = got.kb
+        # Plan quota: cap docs per KB (None = unlimited). Over-cap docs are skipped.
+        remaining = None
+        if settings.kb_require_subscription:
+            sub = await self.subscription_client.get_customer_subscription(req.customer_id)
+            cap = sub.get("max_docs_per_kb")
+            if cap is not None:
+                remaining = max(0, cap - (kb.doc_count or 0))
         gens = await self.generation_client.resolve(req.customer_id, req.generation_ids)
         store = build_vector_store(kb.tech_stack)
         ingested = skipped = 0
@@ -125,6 +145,9 @@ class KbFacade(BaseFacade, IKbFacade):
             gid = gen.get("id")
             if not gid or self.kb_dao.doc_exists(req.db, kb.id, gid):
                 skipped += 1
+                continue
+            if remaining is not None and ingested >= remaining:
+                skipped += 1  # plan's per-KB document quota reached
                 continue
             text, title = _doc_text(gen)
             if not text:
@@ -142,6 +165,43 @@ class KbFacade(BaseFacade, IKbFacade):
         req.db.commit()
         Metrics.counter_add("kb.ingest", ingested, {"stack": kb.tech_stack})
         return IngestResp(ingested=ingested, skipped=skipped, doc_count=kb.doc_count)
+
+    # --- async ingestion (large batches run in the background; clients poll) ---
+    @observe("KbFacade.create_ingest_job")
+    def create_ingest_job(self, req: CreateIngestJobReq) -> IngestJobResp:
+        got = self.kb_dao.get_kb(GetKbReq(db=req.db, customer_id=req.customer_id, kb_id=req.kb_id))
+        if not got.success:
+            return IngestJobResp.failure(error_code=got.error_code, error_message=got.error_message)
+        resp = self.kb_dao.create_ingest_job(req)
+        req.db.commit()
+        return resp
+
+    @observe("KbFacade.get_ingest_job")
+    def get_ingest_job(self, req: GetIngestJobReq) -> IngestJobResp:
+        return self.kb_dao.get_ingest_job(req)
+
+    @observe("KbFacade.run_ingest_job")
+    async def run_ingest_job(self, req: RunIngestJobReq) -> IngestJobResp:
+        """Background worker: run the (already-validated) job's ingest and record
+        progress on the job. Self-contained + fail-safe — errors land on the job."""
+        job = self.kb_dao.get_ingest_job_by_id(req.db, req.job_id)
+        if job is None:
+            return IngestJobResp.failure(error_code="not_found", error_message="Ingest job not found")
+        job.status = "running"
+        req.db.commit()
+        try:
+            resp = await self.ingest(
+                IngestReq(db=req.db, customer_id=job.customer_id, kb_id=job.kb_id,
+                          generation_ids=list(job.requested_ids or []))
+            )
+            if not resp.success:
+                job.status, job.error = "error", resp.error_message
+            else:
+                job.status, job.ingested, job.skipped = "done", resp.ingested, resp.skipped
+        except Exception as exc:  # never let a background failure escape
+            job.status, job.error = "error", str(exc)[:1024]
+        req.db.commit()
+        return IngestJobResp(job=job)
 
     @observe("KbFacade.query", metric="kb.query")
     async def query(self, req: QueryReq) -> QueryResp:
@@ -167,6 +227,24 @@ class KbFacade(BaseFacade, IKbFacade):
     @observe("KbFacade.usage")
     def usage(self, req: UsageReq) -> UsageResp:
         return self.kb_dao.usage_by_customer(req)
+
+    @observe("KbFacade.my_subscription")
+    async def my_subscription(self, req: MySubscriptionReq) -> MySubscriptionResp:
+        """The customer's allowed stacks + quotas, used to scope the portal's KB
+        picker. When gating is off (or no subscription), fall back to the full
+        catalog so KB creation still works in dev."""
+        gating = settings.kb_require_subscription
+        if not gating:
+            return MySubscriptionResp(has_subscription=False, stacks=list(TECH_STACKS), gating_enabled=False)
+        sub = await self.subscription_client.get_customer_subscription(req.customer_id)
+        if not sub.get("has_subscription"):
+            return MySubscriptionResp(has_subscription=False, stacks=[], gating_enabled=True)
+        stacks = [s.get("stack") for s in (sub.get("stacks") or []) if s.get("stack")]
+        return MySubscriptionResp(
+            has_subscription=True, plan_name=sub.get("plan_name"), stacks=stacks,
+            max_kbs=sub.get("max_kbs"), max_docs_per_kb=sub.get("max_docs_per_kb"),
+            gating_enabled=True,
+        )
 
     # --- delete / lifecycle ---
     def _purge_kb(self, db, kb) -> int:

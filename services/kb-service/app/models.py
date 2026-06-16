@@ -60,3 +60,19 @@ class KbVector(Base, UUIDPkMixin, TimestampMixin):
     doc_id: Mapped[str] = mapped_column(String(64), index=True)
     vector: Mapped[list] = mapped_column(JSON)
     payload: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class KbIngestJob(Base, UUIDPkMixin, TimestampMixin):
+    """An async ingestion job: embedding + fan-out runs in the background so large
+    batches don't block the request. Clients poll it for progress."""
+
+    __tablename__ = "kb_ingest_jobs"
+
+    kb_id: Mapped[str] = mapped_column(String(36), index=True)
+    customer_id: Mapped[str] = mapped_column(String(36), index=True)
+    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending|running|done|error
+    requested_ids: Mapped[list] = mapped_column(JSON, default=list)
+    requested: Mapped[int] = mapped_column(BigInteger, default=0)
+    ingested: Mapped[int] = mapped_column(BigInteger, default=0)
+    skipped: Mapped[int] = mapped_column(BigInteger, default=0)
+    error: Mapped[str | None] = mapped_column(String(1024), nullable=True)

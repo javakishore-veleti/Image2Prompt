@@ -283,6 +283,8 @@ class CreatePlanReq(BaseReq):
     description: Optional[str] = None
     status: str = "active"
     stacks: list = field(default_factory=list)  # [{stack, monthly_cost}]
+    max_kbs: Optional[int] = None  # None = unlimited
+    max_docs_per_kb: Optional[int] = None
     actor_id: Optional[str] = None
     actor_email: Optional[str] = None
 
@@ -295,6 +297,11 @@ class UpdatePlanReq(BaseReq):
     description: Optional[str] = None
     status: Optional[str] = None
     stacks: Optional[list] = None
+    max_kbs: Optional[int] = None
+    max_docs_per_kb: Optional[int] = None
+    # Sentinels so PATCH can distinguish "absent" from "set to unlimited (null)".
+    set_max_kbs: bool = False
+    set_max_docs_per_kb: bool = False
     actor_id: Optional[str] = None
     actor_email: Optional[str] = None
 
@@ -353,6 +360,18 @@ class SubscriptionResp(BaseResp):
 @dataclass(kw_only=True)
 class SubscriptionListResp(BaseResp):
     subscriptions: list[CustomerSubscription] = field(default_factory=list)
+
+
+@dataclass(kw_only=True)
+class RevenueRollupReq(BaseReq):
+    db: Session
+
+
+@dataclass(kw_only=True)
+class RevenueRollupResp(BaseResp):
+    total_mrr: float = 0.0
+    # per-plan: {plan_id, plan_name, customers, plan_price, mrr}
+    plans: list[dict] = field(default_factory=list)
 
 
 @dataclass(kw_only=True)

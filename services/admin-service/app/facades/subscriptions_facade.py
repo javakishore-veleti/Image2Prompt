@@ -17,6 +17,8 @@ from ..dtos.internal_dtos import (
     PlanListResp,
     PlanResp,
     RecordAuditReq,
+    RevenueRollupReq,
+    RevenueRollupResp,
     SubscriptionListResp,
     SubscriptionResp,
     UpdatePlanReq,
@@ -109,3 +111,7 @@ class SubscriptionsFacade(BaseFacade, ISubscriptionsFacade):
         self, req: ListActiveSubscriptionsReq
     ) -> ActiveSubscriptionListResp:
         return self.subscription_dao.list_active_subscriptions(req)
+
+    @observe("SubscriptionsFacade.revenue_rollup")
+    def revenue_rollup(self, req: RevenueRollupReq) -> RevenueRollupResp:
+        return self.subscription_dao.revenue_rollup(req)

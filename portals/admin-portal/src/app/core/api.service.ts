@@ -53,6 +53,8 @@ export interface Plan {
   description: string | null;
   status: string;
   stacks: StackPrice[];
+  max_kbs: number | null;
+  max_docs_per_kb: number | null;
 }
 
 export interface SubscriptionRow {
@@ -142,6 +144,12 @@ export class ApiService {
   // --- Subscriptions ---
   techStacks(): Observable<string[]> {
     return this.http.get<string[]>(`${this.admin}/subscriptions/tech-stacks`);
+  }
+  revenue(): Observable<{
+    total_mrr: number;
+    plans: { plan_id: string; plan_name: string; customers: number; plan_price: number; mrr: number }[];
+  }> {
+    return this.http.get<any>(`${this.admin}/subscriptions/revenue`);
   }
   plans(search?: string): Observable<Plan[]> {
     let params = new HttpParams();
