@@ -6,10 +6,12 @@ from image2prompt_shared.observability import observe
 from ..dao.audit_dao import AuditDao
 from ..dao.subscription_dao import SubscriptionDao
 from ..dtos.internal_dtos import (
+    ActiveSubscriptionListResp,
     AssignSubscriptionReq,
     CreatePlanReq,
     GetCustomerSubscriptionReq,
     GetPlanReq,
+    ListActiveSubscriptionsReq,
     ListPlanCustomersReq,
     ListPlansReq,
     PlanListResp,
@@ -101,3 +103,9 @@ class SubscriptionsFacade(BaseFacade, ISubscriptionsFacade):
     @observe("SubscriptionsFacade.get_customer_subscription")
     def get_customer_subscription(self, req: GetCustomerSubscriptionReq) -> SubscriptionResp:
         return self.subscription_dao.get_customer_subscription(req)
+
+    @observe("SubscriptionsFacade.list_active_subscriptions")
+    def list_active_subscriptions(
+        self, req: ListActiveSubscriptionsReq
+    ) -> ActiveSubscriptionListResp:
+        return self.subscription_dao.list_active_subscriptions(req)

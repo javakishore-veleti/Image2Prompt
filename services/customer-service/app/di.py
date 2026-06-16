@@ -8,6 +8,7 @@ the provider functions below (used with FastAPI ``Depends``).
 from __future__ import annotations
 
 from .dao.audit_dao import AuditDao
+from .dao.billing_dao import BillingDao
 from .dao.connection_dao import ConnectionDao
 from .dao.customer_dao import CustomerDao
 from .dao.payment_dao import PaymentDao
@@ -44,6 +45,7 @@ _payment_dao = PaymentDao()
 _connection_dao = ConnectionDao()
 _revoked_token_dao = RevokedTokenDao()
 _audit_dao = AuditDao()
+_billing_dao = BillingDao()
 
 # --- Services ---
 _token_service = TokenService()
@@ -72,6 +74,7 @@ _payments_facade: IPaymentsFacade = PaymentsFacade(
     customer_dao=_customer_dao,
     stripe_service=_stripe_service,
     billing_client=_billing_client,
+    billing_dao=_billing_dao,
 )
 _internal_facade: IInternalFacade = InternalFacade(
     customer_dao=_customer_dao, preference_dao=_preference_dao

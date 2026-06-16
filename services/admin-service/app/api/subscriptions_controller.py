@@ -13,6 +13,7 @@ from ..dtos.internal_dtos import (
     CreatePlanReq,
     GetCustomerSubscriptionReq,
     GetPlanReq,
+    ListActiveSubscriptionsReq,
     ListPlanCustomersReq,
     ListPlansReq,
     UpdatePlanReq,
@@ -127,6 +128,17 @@ def plan_customers(
     return ensure_ok(
         facade.list_plan_customers(ListPlanCustomersReq(db=db, plan_id=plan_id, search=search))
     ).subscriptions
+
+
+@internal.get("/active")
+def active_subscriptions(
+    db: Session = Depends(get_db),
+    facade: ISubscriptionsFacade = Depends(get_subscriptions_facade),
+):
+    """All active subscriptions (with plan + pricing) — the scheduled monthly
+    billing sweep in customer-service iterates these."""
+    resp = ensure_ok(facade.list_active_subscriptions(ListActiveSubscriptionsReq(db=db)))
+    return {"items": resp.items}
 
 
 @internal.get("/customer/{customer_id}", response_model=CustomerSubscriptionView)

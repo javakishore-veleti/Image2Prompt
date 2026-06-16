@@ -13,7 +13,15 @@ from sqlalchemy.orm import Session
 
 from image2prompt_shared.dtos import BaseReq, BaseResp
 
-from ..models import AuditLog, Connection, Customer, CustomerPreference, PaymentSettings, Project
+from ..models import (
+    AuditLog,
+    BillingRun,
+    Connection,
+    Customer,
+    CustomerPreference,
+    PaymentSettings,
+    Project,
+)
 
 
 # --- auth ---
@@ -288,6 +296,33 @@ class ChargeSubscriptionResp(BaseResp):
     currency: str = "usd"
     status: Optional[str] = None
     line_items: list = field(default_factory=list)
+    period: Optional[str] = None
+    already_billed: bool = False
+
+
+@dataclass(kw_only=True)
+class GetBillingRunReq(BaseReq):
+    db: Session
+    customer_id: str
+    period: str
+
+
+@dataclass(kw_only=True)
+class CreateBillingRunReq(BaseReq):
+    db: Session
+    customer_id: str
+    period: str
+    plan_name: Optional[str] = None
+    amount: float = 0.0
+    currency: str = "usd"
+    invoice_id: Optional[str] = None
+    status: str = "created"
+    line_items: list = field(default_factory=list)
+
+
+@dataclass(kw_only=True)
+class BillingRunResp(BaseResp):
+    run: Optional[BillingRun] = None
 
 
 # --- connections (external file systems; mock OAuth for now) ---

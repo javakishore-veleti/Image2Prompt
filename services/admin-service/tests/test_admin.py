@@ -598,6 +598,27 @@ def test_subscriptions_crud_assign_and_report():
         assert client.get("/admin/subscriptions").status_code == 401
 
 
+def test_internal_active_subscriptions_list():
+    """The scheduled billing sweep in customer-service reads active subscriptions
+    (with plan + pricing) from this internal endpoint."""
+    with TestClient(app) as client:
+        h = {"Authorization": f"Bearer {_login(client)}"}
+        plan = client.post(
+            "/admin/subscriptions",
+            json={"name": "Sweep", "stacks": [{"stack": "pgvector", "monthly_cost": 12}]},
+            headers=h,
+        ).json()
+        client.post(f"/admin/subscriptions/{plan['id']}/customers",
+                    json={"customer_id": "sc1", "customer_email": "sc1@acme.io"}, headers=h)
+        client.post(f"/admin/subscriptions/{plan['id']}/customers",
+                    json={"customer_id": "sc2", "customer_email": "sc2@acme.io"}, headers=h)
+
+        items = client.get("/internal/subscriptions/active").json()["items"]
+        mine = {i["customer_id"]: i for i in items if i["plan_name"] == "Sweep"}
+        assert set(mine) == {"sc1", "sc2"}
+        assert mine["sc1"]["stacks"] == [{"stack": "pgvector", "monthly_cost": 12}]
+
+
 def test_default_subscription_plans_seeded():
     """A fresh deploy ships starter plans so customers can be assigned out of the box."""
     with TestClient(app) as client:

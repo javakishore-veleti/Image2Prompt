@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import JSON, BigInteger, Boolean, String
+from sqlalchemy import JSON, BigInteger, Boolean, Float, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from image2prompt_shared.base import TimestampMixin, UUIDPkMixin
@@ -83,3 +83,22 @@ class RevokedToken(Base, UUIDPkMixin, TimestampMixin):
     # The token family this jti belongs to. Reuse of a rotated refresh token
     # revokes the whole family (all descendants), not just the presented token.
     family_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+
+
+class BillingRun(Base, UUIDPkMixin, TimestampMixin):
+    """One billing attempt per (customer, period) — the idempotency guard that
+    prevents double-charging. A period is a calendar month ("YYYY-MM"); once a run
+    with an invoice exists for it, re-invoicing returns that run instead of charging
+    again. ``line_items`` records the per-stack breakdown that was billed."""
+
+    __tablename__ = "billing_runs"
+    __table_args__ = (UniqueConstraint("customer_id", "period", name="uq_billing_run_customer_period"),)
+
+    customer_id: Mapped[str] = mapped_column(String(36), index=True)
+    period: Mapped[str] = mapped_column(String(7), index=True)  # "YYYY-MM"
+    plan_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    amount: Mapped[float] = mapped_column(Float, default=0.0)
+    currency: Mapped[str] = mapped_column(String(10), default="usd")
+    invoice_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    status: Mapped[str] = mapped_column(String(50), default="created")
+    line_items: Mapped[list] = mapped_column(JSON, default=list)

@@ -355,6 +355,18 @@ class SubscriptionListResp(BaseResp):
     subscriptions: list[CustomerSubscription] = field(default_factory=list)
 
 
+@dataclass(kw_only=True)
+class ListActiveSubscriptionsReq(BaseReq):
+    db: Session
+
+
+@dataclass(kw_only=True)
+class ActiveSubscriptionListResp(BaseResp):
+    # one dict per active subscription, denormalized with the plan:
+    # {customer_id, customer_email, plan_id, plan_name, status, stacks}
+    items: list[dict] = field(default_factory=list)
+
+
 # --- maintenance ---
 @dataclass(kw_only=True)
 class PruneReq(BaseReq):

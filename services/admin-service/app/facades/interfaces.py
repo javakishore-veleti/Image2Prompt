@@ -76,6 +76,11 @@ class ISubscriptionsFacade(ABC):
     @abstractmethod
     def get_customer_subscription(self, req: "dto.GetCustomerSubscriptionReq") -> "dto.SubscriptionResp": ...
 
+    @abstractmethod
+    def list_active_subscriptions(
+        self, req: "dto.ListActiveSubscriptionsReq"
+    ) -> "dto.ActiveSubscriptionListResp": ...
+
 
 class IMaintenanceFacade(ABC):
     @abstractmethod

@@ -6,10 +6,12 @@ from image2prompt_shared.layers import BaseDao
 from image2prompt_shared.observability import observe
 
 from ..dtos.internal_dtos import (
+    ActiveSubscriptionListResp,
     AssignSubscriptionReq,
     CreatePlanReq,
     GetCustomerSubscriptionReq,
     GetPlanReq,
+    ListActiveSubscriptionsReq,
     ListPlanCustomersReq,
     ListPlansReq,
     PlanListResp,
@@ -97,6 +99,30 @@ class SubscriptionDao(BaseDao):
             )
         stmt = stmt.order_by(CustomerSubscription.created_at.desc())
         return SubscriptionListResp(subscriptions=list(req.db.scalars(stmt).all()))
+
+    @observe("SubscriptionDao.list_active_subscriptions")
+    def list_active_subscriptions(self, req: ListActiveSubscriptionsReq) -> ActiveSubscriptionListResp:
+        """All active subscriptions joined with their plan — consumed by the
+        scheduled monthly-billing sweep in customer-service."""
+        rows = req.db.execute(
+            select(CustomerSubscription, SubscriptionPlan)
+            .join(SubscriptionPlan, SubscriptionPlan.id == CustomerSubscription.plan_id)
+            .where(CustomerSubscription.status == "active")
+            .order_by(CustomerSubscription.created_at)
+        ).all()
+        return ActiveSubscriptionListResp(
+            items=[
+                {
+                    "customer_id": sub.customer_id,
+                    "customer_email": sub.customer_email,
+                    "plan_id": plan.id,
+                    "plan_name": plan.name,
+                    "status": sub.status,
+                    "stacks": plan.stacks or [],
+                }
+                for sub, plan in rows
+            ]
+        )
 
     @observe("SubscriptionDao.get_customer_subscription")
     def get_customer_subscription(self, req: GetCustomerSubscriptionReq) -> SubscriptionResp:

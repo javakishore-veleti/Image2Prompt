@@ -10,6 +10,13 @@ class CustomerSettings(ServiceSettings):
     stripe_api_key: str = ""
     stripe_currency: str = "usd"
 
+    # Scheduled monthly billing sweep (opt-in: it touches money). When enabled, a
+    # periodic job invoices every active subscriber for the current month; the
+    # per-period idempotency guard means it bills each customer at most once a month
+    # no matter how often the sweep runs. Off by default (and in dev/tests).
+    billing_sweep_enabled: bool = False
+    billing_sweep_interval_seconds: int = 86400  # daily; idempotency bounds to 1/month
+
     # Google Drive OAuth (Connections). Empty client id => connect returns
     # "not configured"; the mock providers (onedrive/dropbox) still work.
     google_oauth_client_id: str = ""

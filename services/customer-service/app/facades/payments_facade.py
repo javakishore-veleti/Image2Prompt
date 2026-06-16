@@ -4,6 +4,7 @@ from image2prompt_shared.layers import BaseFacade
 from image2prompt_shared.observability import observe
 
 from ..config import settings
+from ..dao.billing_dao import BillingDao
 from ..dao.customer_dao import CustomerDao
 from ..dao.payment_dao import PaymentDao
 from ..dtos.internal_dtos import (
@@ -11,6 +12,8 @@ from ..dtos.internal_dtos import (
     BillingResp,
     ChargeSubscriptionReq,
     ChargeSubscriptionResp,
+    CreateBillingRunReq,
+    GetBillingRunReq,
     GetByIdReq,
     GetPaymentReq,
     PaymentResp,
@@ -38,12 +41,14 @@ class PaymentsFacade(BaseFacade, IPaymentsFacade):
         customer_dao: CustomerDao,
         stripe_service: StripeService,
         billing_client: BillingClient,
+        billing_dao: BillingDao,
     ) -> None:
         super().__init__()
         self.payment_dao = payment_dao
         self.customer_dao = customer_dao
         self.stripe_service = stripe_service
         self.billing_client = billing_client
+        self.billing_dao = billing_dao
 
     def _ensure_stripe_customer(self, *, db, customer_id) -> tuple[object, str | None, bool]:
         """Return (payment_settings, stripe_customer_id, configured), creating the
@@ -127,16 +132,39 @@ class PaymentsFacade(BaseFacade, IPaymentsFacade):
             subscription=self._compute_subscription(req.customer_id),
         )
 
+    @staticmethod
+    def _current_period() -> str:
+        from datetime import datetime, timezone
+
+        return datetime.now(timezone.utc).strftime("%Y-%m")
+
     @observe("PaymentsFacade.charge_subscription")
     def charge_subscription(self, req: ChargeSubscriptionReq) -> ChargeSubscriptionResp:
-        """Generate a Stripe invoice for the current month's KB subscription charges."""
+        """Generate a Stripe invoice for the current month's KB subscription charges.
+        Idempotent per (customer, calendar month): once an invoice exists for the
+        period, re-invoking returns that run instead of charging again."""
+        period = getattr(req, "period", None) or self._current_period()
+
+        # Idempotency guard: a real invoice already exists for this period.
+        existing = self.billing_dao.get_run(
+            GetBillingRunReq(db=req.db, customer_id=req.customer_id, period=period)
+        ).run
+        if existing is not None and existing.invoice_id:
+            return ChargeSubscriptionResp(
+                configured=True, already_billed=True, invoice_id=existing.invoice_id,
+                amount=existing.amount, currency=existing.currency, status=existing.status,
+                line_items=existing.line_items or [], period=period,
+            )
+
         sub = self._compute_subscription(req.customer_id)
         _, cid, configured = self._ensure_stripe_customer(db=req.db, customer_id=req.customer_id)
         if not configured:
+            # Nothing charged -> no run recorded, so a later configured run still bills.
             return ChargeSubscriptionResp(
-                configured=False, line_items=sub["line_items"],
-                amount=sub["monthly_total"], currency=sub["currency"], status="stripe_not_configured",
+                configured=False, line_items=sub["line_items"], amount=sub["monthly_total"],
+                currency=sub["currency"], status="stripe_not_configured", period=period,
             )
+
         line_items = [
             InvoiceLineItem(
                 description=f"Project KB — {li['stack']} ({li['kb_count']} KB, {li['doc_count']} docs)",
@@ -147,6 +175,20 @@ class PaymentsFacade(BaseFacade, IPaymentsFacade):
         inv = self.stripe_service.create_invoice(
             CreateInvoiceReq(customer_id=cid, line_items=line_items, currency=sub["currency"])
         )
+
+        # Record the run only when an invoice was actually created — that's what the
+        # idempotency guard keys on (a $0 / nothing-to-bill period is not recorded).
+        if inv.success and inv.invoice_id:
+            self.billing_dao.create_run(
+                CreateBillingRunReq(
+                    db=req.db, customer_id=req.customer_id, period=period,
+                    plan_name=sub.get("plan_name"), amount=inv.amount or sub["monthly_total"],
+                    currency=sub["currency"], invoice_id=inv.invoice_id,
+                    status=inv.status or "created", line_items=sub["line_items"],
+                )
+            )
+            req.db.commit()
+
         return ChargeSubscriptionResp(
             success=inv.success,
             configured=inv.configured,
@@ -156,6 +198,7 @@ class PaymentsFacade(BaseFacade, IPaymentsFacade):
             currency=sub["currency"],
             status=inv.status,
             line_items=sub["line_items"],
+            period=period,
             error_code=inv.error_code,
             error_message=inv.error_message,
         )

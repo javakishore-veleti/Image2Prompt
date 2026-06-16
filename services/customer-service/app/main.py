@@ -45,6 +45,13 @@ async def lifespan(app: FastAPI):
         func=_prune_revoked_tokens,
         run_on_start=True,
     )
+    if settings.billing_sweep_enabled:
+        scheduler.add_job(
+            name="monthly-billing-sweep",
+            interval_seconds=settings.billing_sweep_interval_seconds,
+            func=_run_billing_sweep,
+            run_on_start=False,
+        )
     await scheduler.start()
     try:
         yield
@@ -64,6 +71,37 @@ def _prune_revoked_tokens() -> None:
             log.info("pruned %d expired revoked tokens", removed)
     except Exception as exc:  # never block startup on housekeeping
         log.warning("revoked-token prune skipped: %s", exc)
+
+
+def _run_billing_sweep() -> None:
+    """Invoice every active subscriber for the current month. Idempotent per
+    (customer, month), so frequent sweeps still bill once. Fully fail-safe — one
+    customer's failure never aborts the rest, and the job never raises."""
+    from .di import _billing_client, get_payments_facade
+    from .dtos.internal_dtos import ChargeSubscriptionReq
+
+    facade = get_payments_facade()
+    subs = _billing_client.list_active_subscriptions()
+    if not subs:
+        return
+    billed = skipped = failed = 0
+    for sub in subs:
+        cid = sub.get("customer_id")
+        if not cid:
+            continue
+        try:
+            with db.SessionLocal() as session:
+                resp = facade.charge_subscription(ChargeSubscriptionReq(db=session, customer_id=cid))
+            if not resp.success:
+                failed += 1
+            elif resp.already_billed or resp.status in ("nothing_to_bill", "stripe_not_configured"):
+                skipped += 1
+            else:
+                billed += 1
+        except Exception as exc:  # isolate per-customer failures
+            failed += 1
+            log.warning("billing sweep failed for customer %s: %s", cid, exc)
+    log.info("billing sweep: %d billed, %d skipped, %d failed", billed, skipped, failed)
 
 
 app = FastAPI(title="Image2Prompt Customer Service", lifespan=lifespan)

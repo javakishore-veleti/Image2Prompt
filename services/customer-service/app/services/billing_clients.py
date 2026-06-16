@@ -29,6 +29,21 @@ class BillingClient(BaseService):
             self.log.warning("subscription lookup failed: %s", exc)
             return {"has_subscription": False, "stacks": []}
 
+    @observe("BillingClient.list_active_subscriptions")
+    def list_active_subscriptions(self) -> list[dict]:
+        """All active subscriptions (with plan + pricing) — driven by the scheduled
+        monthly-billing sweep. [{customer_id, customer_email, plan_id, plan_name,
+        status, stacks}]."""
+        url = f"{settings.admin_service_url}/internal/subscriptions/active"
+        try:
+            with httpx.Client(timeout=15.0) as client:
+                r = client.get(url)
+                r.raise_for_status()
+                return r.json().get("items", [])
+        except (httpx.HTTPError, ValueError) as exc:
+            self.log.warning("active-subscriptions lookup failed: %s", exc)
+            return []
+
     @observe("BillingClient.get_kb_usage")
     def get_kb_usage(self, customer_id: str) -> list[dict]:
         """[{stack, kb_count, doc_count}] — the customer's provisioned KBs per stack."""

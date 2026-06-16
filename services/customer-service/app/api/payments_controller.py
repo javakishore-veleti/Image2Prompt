@@ -92,4 +92,6 @@ def charge_subscription(
         "currency": resp.currency,
         "status": resp.status,
         "line_items": resp.line_items,
+        "period": resp.period,
+        "already_billed": resp.already_billed,
     }
