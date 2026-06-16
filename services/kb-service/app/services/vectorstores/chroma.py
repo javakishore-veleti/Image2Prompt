@@ -55,3 +55,12 @@ class ChromaVectorStore(VectorStore):
         except Exception as exc:
             log.warning("chroma query failed (%s); using in-process index", exc)
             return self._mem_query(namespace, vector, top_k)
+
+    def delete_namespace(self, *, namespace, db=None):
+        self._mem_delete(namespace)
+        if not self._client:
+            return
+        try:
+            self._client.delete_collection(f"kb_{namespace}")
+        except Exception as exc:
+            log.warning("chroma delete_namespace failed: %s", exc)

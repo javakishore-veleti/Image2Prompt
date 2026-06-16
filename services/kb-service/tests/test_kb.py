@@ -131,6 +131,53 @@ def test_unconfigured_cloud_store_degrades(monkeypatch):
         assert res["results"] and res["results"][0]["generation_id"] == "g1"
 
 
+def test_delete_kb_removes_docs_vectors_and_usage(monkeypatch):
+    """Deleting a KB purges its documents + vectors and drops it from usage."""
+    async def _resolve(customer_id, ids):
+        return [g for g in _FAKE_GENS if g["id"] in ids]
+
+    monkeypatch.setattr(_generation_client, "resolve", _resolve)
+
+    with TestClient(app) as client:
+        h = _auth("del-cust")
+        g = client.post("/groups", json={"project_id": "pd", "name": "G"}, headers=h).json()
+        kb = client.post(
+            "/kbs", json={"group_id": g["id"], "project_id": "pd", "name": "K", "tech_stack": "pgvector"}, headers=h
+        ).json()
+        client.post(f"/kbs/{kb['id']}/ingest", json={"generation_ids": ["g1", "g2"]}, headers=h)
+        assert len(client.get(f"/kbs/{kb['id']}/documents", headers=h).json()) == 2
+
+        # delete the KB
+        d = client.delete(f"/kbs/{kb['id']}", headers=h).json()
+        assert d == {"deleted_kbs": 1, "deleted_docs": 2}
+        # KB is gone, and no longer counted toward usage/billing
+        assert client.get(f"/kbs/{kb['id']}", headers=h).status_code == 404
+        assert client.get("/internal/usage/customer/del-cust").json()["stacks"] == []
+        # double-delete is a clean 404
+        assert client.delete(f"/kbs/{kb['id']}", headers=h).status_code == 404
+
+
+def test_delete_group_cascades_to_kbs(monkeypatch):
+    async def _resolve(customer_id, ids):
+        return [g for g in _FAKE_GENS if g["id"] in ids]
+
+    monkeypatch.setattr(_generation_client, "resolve", _resolve)
+
+    with TestClient(app) as client:
+        h = _auth("delgrp-cust")
+        g = client.post("/groups", json={"project_id": "pg2", "name": "G"}, headers=h).json()
+        k1 = client.post("/kbs", json={"group_id": g["id"], "project_id": "pg2", "name": "A", "tech_stack": "pgvector"}, headers=h).json()
+        k2 = client.post("/kbs", json={"group_id": g["id"], "project_id": "pg2", "name": "B", "tech_stack": "chroma"}, headers=h).json()
+        client.post(f"/kbs/{k1['id']}/ingest", json={"generation_ids": ["g1"]}, headers=h)
+
+        d = client.delete(f"/groups/{g['id']}", headers=h).json()
+        assert d["deleted_kbs"] == 2 and d["deleted_docs"] == 1
+        assert client.get(f"/kbs/{k1['id']}", headers=h).status_code == 404
+        assert client.get(f"/kbs/{k2['id']}", headers=h).status_code == 404
+        # another customer can't delete someone's group
+        assert client.delete(f"/groups/{g['id']}", headers=_auth("intruder")).status_code == 404
+
+
 def test_internal_usage_reports_per_stack_counts(monkeypatch):
     """The /internal usage endpoint (consumed by customer-service billing) returns
     one entry per tech stack with KB and doc counts for the customer."""

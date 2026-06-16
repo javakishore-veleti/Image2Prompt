@@ -64,3 +64,12 @@ class MongoVectorStore(VectorStore):
         except Exception as exc:
             log.warning("mongodb query failed (%s); using in-process index", exc)
             return self._mem_query(namespace, vector, top_k)
+
+    def delete_namespace(self, *, namespace, db=None):
+        self._mem_delete(namespace)
+        if self._coll is None:
+            return
+        try:
+            self._coll.delete_many({"kb_id": namespace})
+        except Exception as exc:
+            log.warning("mongodb delete_namespace failed: %s", exc)

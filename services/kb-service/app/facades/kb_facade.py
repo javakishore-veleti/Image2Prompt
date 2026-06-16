@@ -9,6 +9,9 @@ from ..dtos.internal_dtos import (
     AddDocReq,
     CreateGroupReq,
     CreateKbReq,
+    DeleteGroupReq,
+    DeleteKbReq,
+    DeleteResp,
     DocListResp,
     GetKbReq,
     GroupListResp,
@@ -164,3 +167,34 @@ class KbFacade(BaseFacade, IKbFacade):
     @observe("KbFacade.usage")
     def usage(self, req: UsageReq) -> UsageResp:
         return self.kb_dao.usage_by_customer(req)
+
+    # --- delete / lifecycle ---
+    def _purge_kb(self, db, kb) -> int:
+        """Remove a KB's vectors from its backend, then its doc + KB rows. Returns
+        docs removed. Vector cleanup is best-effort (never blocks the DB delete)."""
+        store = build_vector_store(kb.tech_stack)
+        store.delete_namespace(namespace=kb.id, db=db)
+        return self.kb_dao.delete_kb_row(db, kb)
+
+    @observe("KbFacade.delete_kb", metric="kb.delete")
+    def delete_kb(self, req: DeleteKbReq) -> DeleteResp:
+        got = self.kb_dao.get_kb(GetKbReq(db=req.db, customer_id=req.customer_id, kb_id=req.kb_id))
+        if not got.success:
+            return DeleteResp.failure(error_code=got.error_code, error_message=got.error_message)
+        docs = self._purge_kb(req.db, got.kb)
+        req.db.commit()
+        Metrics.counter_add("kb.delete", 1, {"stack": got.kb.tech_stack})
+        return DeleteResp(deleted_kbs=1, deleted_docs=docs)
+
+    @observe("KbFacade.delete_group", metric="kb.group.delete")
+    def delete_group(self, req: DeleteGroupReq) -> DeleteResp:
+        group = self.kb_dao.get_group(req.db, req.customer_id, req.group_id)
+        if group is None:
+            return DeleteResp.failure(error_code="not_found", error_message="Group not found")
+        kbs = self.kb_dao.list_kbs(
+            ListKbsReq(db=req.db, customer_id=req.customer_id, group_id=req.group_id)
+        ).kbs
+        docs = sum(self._purge_kb(req.db, kb) for kb in kbs)
+        self.kb_dao.delete_group_row(req.db, group)
+        req.db.commit()
+        return DeleteResp(deleted_kbs=len(kbs), deleted_docs=docs)

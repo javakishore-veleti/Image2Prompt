@@ -49,9 +49,18 @@ class VectorStore:
         scored.sort(key=lambda x: x["score"], reverse=True)
         return scored[:top_k]
 
+    def _mem_delete(self, namespace):
+        _MEM.pop((self.stack, namespace), None)
+
     # --- public interface (override the real backend; fall back on error) ---
     def upsert(self, *, namespace, doc_id, vector, text="", payload=None, db=None):
         self._mem_upsert(namespace, doc_id, vector, payload)
 
     def query(self, *, namespace, vector, text="", top_k=5, db=None):
         return self._mem_query(namespace, vector, top_k)
+
+    def delete_namespace(self, *, namespace, db=None):
+        """Remove all vectors for a KB. Called on KB delete so the external store
+        doesn't leak data (and keep counting toward billing). Best-effort: errors
+        are swallowed after cleaning the in-process fallback."""
+        self._mem_delete(namespace)

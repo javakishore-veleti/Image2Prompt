@@ -64,3 +64,12 @@ class PineconeStore(VectorStore):
         except Exception as exc:
             log.warning("pinecone query failed (%s); using in-process index", exc)
             return self._mem_query(namespace, vector, top_k)
+
+    def delete_namespace(self, *, namespace, db=None):
+        self._mem_delete(namespace)
+        if self._pc is None:
+            return
+        try:
+            self._pc.Index(settings.pinecone_index).delete(delete_all=True, namespace=namespace)
+        except Exception as exc:
+            log.warning("pinecone delete_namespace failed: %s", exc)

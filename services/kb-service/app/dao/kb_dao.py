@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 
 from image2prompt_shared.layers import BaseDao
 from image2prompt_shared.observability import observe
@@ -40,6 +40,10 @@ class KbDao(BaseDao):
             stmt = stmt.where(KbGroup.project_id == req.project_id)
         return GroupListResp(groups=list(req.db.scalars(stmt.order_by(KbGroup.created_at.desc())).all()))
 
+    def get_group(self, db, customer_id: str, group_id: str) -> KbGroup | None:
+        g = db.get(KbGroup, group_id)
+        return g if (g is not None and g.customer_id == customer_id) else None
+
     # --- kbs ---
     @observe("KbDao.create_kb")
     def create_kb(self, req: CreateKbReq, *, backend_ready: bool) -> KbResp:
@@ -64,6 +68,23 @@ class KbDao(BaseDao):
         if kb is None or kb.customer_id != req.customer_id:
             return KbResp.failure(error_code="not_found", error_message="KB not found")
         return KbResp(kb=kb)
+
+    @observe("KbDao.delete_kb_row")
+    def delete_kb_row(self, db, kb: ProjectKb) -> int:
+        """Delete a KB's document rows and the KB itself. Returns docs removed.
+        (Vector data is removed separately via the vector store's delete_namespace.)"""
+        doc_count = db.scalar(
+            select(func.count(KbDocument.id)).where(KbDocument.kb_id == kb.id)
+        ) or 0
+        db.execute(delete(KbDocument).where(KbDocument.kb_id == kb.id))
+        db.delete(kb)
+        db.flush()
+        return int(doc_count)
+
+    @observe("KbDao.delete_group_row")
+    def delete_group_row(self, db, group: KbGroup) -> None:
+        db.delete(group)
+        db.flush()
 
     # --- documents ---
     @observe("KbDao.get_doc")

@@ -136,6 +136,12 @@ export class ApiService {
   queryKb(kbId: string, query: string, topK = 5): Observable<{ results: KbResult[] }> {
     return this.http.post<{ results: KbResult[] }>(`${this.kb}/kbs/${kbId}/query`, { query, top_k: topK });
   }
+  deleteKb(kbId: string): Observable<{ deleted_kbs: number; deleted_docs: number }> {
+    return this.http.delete<{ deleted_kbs: number; deleted_docs: number }>(`${this.kb}/kbs/${kbId}`);
+  }
+  deleteKbGroup(groupId: string): Observable<{ deleted_kbs: number; deleted_docs: number }> {
+    return this.http.delete<{ deleted_kbs: number; deleted_docs: number }>(`${this.kb}/groups/${groupId}`);
+  }
 
   // --- Profile / preferences ---
   me(): Observable<any> {

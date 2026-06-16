@@ -11,6 +11,8 @@ from ..di import get_kb_facade
 from ..dtos.internal_dtos import (
     CreateGroupReq,
     CreateKbReq,
+    DeleteGroupReq,
+    DeleteKbReq,
     GetKbReq,
     IngestReq,
     ListDocsReq,
@@ -53,6 +55,19 @@ def create_group(
             CreateGroupReq(db=db, customer_id=principal.id, project_id=payload.project_id, name=payload.name)
         )
     ).group
+
+
+@router.delete("/groups/{group_id}")
+def delete_group(
+    group_id: str,
+    principal: Principal = Depends(current_customer),
+    db: Session = Depends(get_db),
+    facade: IKbFacade = Depends(get_kb_facade),
+):
+    resp = ensure_ok(
+        facade.delete_group(DeleteGroupReq(db=db, customer_id=principal.id, group_id=group_id))
+    )
+    return {"deleted_kbs": resp.deleted_kbs, "deleted_docs": resp.deleted_docs}
 
 
 @router.get("/groups", response_model=list[GroupOut])
@@ -103,6 +118,17 @@ def get_kb(
     facade: IKbFacade = Depends(get_kb_facade),
 ):
     return ensure_ok(facade.get_kb(GetKbReq(db=db, customer_id=principal.id, kb_id=kb_id))).kb
+
+
+@router.delete("/kbs/{kb_id}")
+def delete_kb(
+    kb_id: str,
+    principal: Principal = Depends(current_customer),
+    db: Session = Depends(get_db),
+    facade: IKbFacade = Depends(get_kb_facade),
+):
+    resp = ensure_ok(facade.delete_kb(DeleteKbReq(db=db, customer_id=principal.id, kb_id=kb_id)))
+    return {"deleted_kbs": resp.deleted_kbs, "deleted_docs": resp.deleted_docs}
 
 
 @router.get("/kbs/{kb_id}/documents", response_model=list[DocOut])

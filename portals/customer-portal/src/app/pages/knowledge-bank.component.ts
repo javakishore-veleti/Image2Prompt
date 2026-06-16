@@ -40,7 +40,10 @@ import { ApiService, KbGroup, KbResult, ProjectKb, PromptItem } from '../core/ap
         </div>
 
         <div *ngIf="group()">
-          <h3>KBs in “{{ group()?.name }}”</h3>
+          <div class="hrow">
+            <h3>KBs in “{{ group()?.name }}”</h3>
+            <button class="danger small" (click)="deleteGroup()">Delete group</button>
+          </div>
           <div class="row">
             <input placeholder="New KB name" [(ngModel)]="kbName" />
             <select [(ngModel)]="kbStack">
@@ -62,7 +65,10 @@ import { ApiService, KbGroup, KbResult, ProjectKb, PromptItem } from '../core/ap
 
       <!-- Selected KB: ingest + search -->
       <div class="card" *ngIf="kb() as k">
-        <h3>{{ k.name }} <span class="chip mono">{{ k.tech_stack }}</span></h3>
+        <div class="hrow">
+          <h3>{{ k.name }} <span class="chip mono">{{ k.tech_stack }}</span></h3>
+          <button class="danger small" (click)="deleteKb()">Delete KB</button>
+        </div>
 
         <h4>Ingest prompts</h4>
         <p class="muted small">Select generated prompts to add to this KB.</p>
@@ -95,6 +101,9 @@ import { ApiService, KbGroup, KbResult, ProjectKb, PromptItem } from '../core/ap
   `,
   styles: [
     `
+      .hrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+      .danger { background: transparent; color: #c0392b; border: 1px solid #c0392b; border-radius: 8px; padding: 4px 10px; }
+      .danger:hover { background: #c0392b; color: #fff; }
       .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
       @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
       .row { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
@@ -188,6 +197,33 @@ export class KnowledgeBankComponent {
         },
         error: (err) => this.error.set(err?.error?.detail ?? 'Create failed (check your subscription)'),
       });
+  }
+
+  deleteGroup(): void {
+    const g = this.group();
+    if (!g || !confirm(`Delete group “${g.name}” and all its KBs? This cannot be undone.`)) return;
+    this.api.deleteKbGroup(g.id).subscribe({
+      next: () => {
+        this.group.set(null);
+        this.kb.set(null);
+        this.kbs.set([]);
+        this.api.kbGroups(this.projectId).subscribe({ next: (gs) => this.groups.set(gs) });
+      },
+      error: () => {},
+    });
+  }
+
+  deleteKb(): void {
+    const k = this.kb();
+    const g = this.group();
+    if (!k || !g || !confirm(`Delete KB “${k.name}”? Its documents and vectors will be removed.`)) return;
+    this.api.deleteKb(k.id).subscribe({
+      next: () => {
+        this.kb.set(null);
+        this.selectGroup(g);
+      },
+      error: () => {},
+    });
   }
 
   selectKb(k: ProjectKb): void {

@@ -34,3 +34,9 @@ class IKbFacade(ABC):
 
     @abstractmethod
     def usage(self, req: "dto.UsageReq") -> "dto.UsageResp": ...
+
+    @abstractmethod
+    def delete_kb(self, req: "dto.DeleteKbReq") -> "dto.DeleteResp": ...
+
+    @abstractmethod
+    def delete_group(self, req: "dto.DeleteGroupReq") -> "dto.DeleteResp": ...

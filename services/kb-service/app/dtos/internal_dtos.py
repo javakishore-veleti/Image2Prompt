@@ -125,6 +125,27 @@ class AddDocReq(BaseReq):
     meta: dict = field(default_factory=dict)
 
 
+# --- delete / lifecycle ---
+@dataclass(kw_only=True)
+class DeleteKbReq(BaseReq):
+    db: Session
+    customer_id: str
+    kb_id: str
+
+
+@dataclass(kw_only=True)
+class DeleteGroupReq(BaseReq):
+    db: Session
+    customer_id: str
+    group_id: str
+
+
+@dataclass(kw_only=True)
+class DeleteResp(BaseResp):
+    deleted_kbs: int = 0
+    deleted_docs: int = 0
+
+
 # --- usage (billing: per-stack KB/doc counts for a customer) ---
 @dataclass(kw_only=True)
 class UsageReq(BaseReq):

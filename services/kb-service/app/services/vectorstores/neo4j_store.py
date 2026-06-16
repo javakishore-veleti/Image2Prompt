@@ -69,3 +69,13 @@ class Neo4jVectorStore(VectorStore):
         except Exception as exc:
             log.warning("neo4j query failed (%s); using in-process index", exc)
             return self._mem_query(namespace, vector, top_k)
+
+    def delete_namespace(self, *, namespace, db=None):
+        self._mem_delete(namespace)
+        if self._driver is None:
+            return
+        try:
+            with self._driver.session(database=settings.neo4j_database) as s:
+                s.run("MATCH (d:KbDoc {kb_id: $kb}) DETACH DELETE d", kb=namespace)
+        except Exception as exc:
+            log.warning("neo4j delete_namespace failed: %s", exc)

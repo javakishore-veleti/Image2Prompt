@@ -71,3 +71,14 @@ class OpenSearchStore(VectorStore):
         except Exception as exc:
             log.warning("opensearch query failed (%s); using in-process index", exc)
             return self._mem_query(namespace, vector, top_k)
+
+    def delete_namespace(self, *, namespace, db=None):
+        self._mem_delete(namespace)
+        if not self._client:
+            return
+        try:
+            index = self._index(namespace)
+            if self._client.indices.exists(index=index):
+                self._client.indices.delete(index=index)
+        except Exception as exc:
+            log.warning("opensearch delete_namespace failed: %s", exc)

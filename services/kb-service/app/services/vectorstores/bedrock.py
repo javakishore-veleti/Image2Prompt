@@ -69,3 +69,26 @@ class BedrockKbStore(VectorStore):
         except Exception as exc:
             log.warning("bedrock-kb retrieve failed (%s); using in-process index", exc)
             return self._mem_query(namespace, vector, top_k)
+
+    def delete_namespace(self, *, namespace, db=None):
+        self._mem_delete(namespace)
+        if not self.ready():
+            return
+        try:
+            # Remove the KB's docs from the S3 data source, then re-sync the KB so
+            # the deletions propagate to the managed index (best-effort).
+            s3 = self._s3()
+            prefix = f"{settings.bedrock_kb_prefix}{namespace}/"
+            listed = s3.list_objects_v2(Bucket=settings.bedrock_kb_s3_bucket, Prefix=prefix)
+            keys = [{"Key": o["Key"]} for o in listed.get("Contents", [])]
+            if keys:
+                s3.delete_objects(Bucket=settings.bedrock_kb_s3_bucket, Delete={"Objects": keys})
+            if settings.bedrock_kb_data_source_id:
+                import boto3
+
+                boto3.client("bedrock-agent", region_name=settings.aws_region).start_ingestion_job(
+                    knowledgeBaseId=settings.bedrock_kb_id,
+                    dataSourceId=settings.bedrock_kb_data_source_id,
+                )
+        except Exception as exc:
+            log.warning("bedrock-kb delete_namespace failed: %s", exc)

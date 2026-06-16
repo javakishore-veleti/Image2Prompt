@@ -72,3 +72,16 @@ class WeaviateStore(VectorStore):
         except Exception as exc:
             log.warning("weaviate query failed (%s); using in-process index", exc)
             return self._mem_query(namespace, vector, top_k)
+
+    def delete_namespace(self, *, namespace, db=None):
+        self._mem_delete(namespace)
+        if self._client is None:
+            return
+        try:
+            from weaviate.classes.query import Filter
+
+            self._collection().data.delete_many(
+                where=Filter.by_property("kb_id").equal(namespace)
+            )
+        except Exception as exc:
+            log.warning("weaviate delete_namespace failed: %s", exc)

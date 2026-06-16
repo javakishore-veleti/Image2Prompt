@@ -29,3 +29,7 @@ class SqlVectorStore(VectorStore):
         ]
         scored.sort(key=lambda x: x["score"], reverse=True)
         return scored[:top_k]
+
+    def delete_namespace(self, *, namespace, db: Session = None):
+        db.execute(delete(KbVector).where(KbVector.kb_id == namespace))
+        db.flush()
