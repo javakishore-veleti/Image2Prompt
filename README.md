@@ -5,9 +5,15 @@ was created — camera settings, artistic style, composition, storytelling — a
 text-to-image prompt that could recreate it.
 
 This repo productizes that capability (originally a single Streamlit + AWS Bedrock lab)
-into a microservices backend with two Angular portals. It is currently a **vertical
-slice**: signup/signin → upload image → generate a prompt via a pluggable AI provider →
-browse/search generated prompts, plus an admin portal to manage providers and customers.
+into a microservices backend with two Angular portals: signup/signin → upload image →
+generate a prompt via a pluggable AI provider → browse/search generated prompts, plus an
+admin portal to manage providers and customers.
+
+It also ships a commercial **Project Knowledge Bank** capability — customers build
+per-project knowledge bases from their generated prompts on a pluggable vector store
+(8 tech stacks), gated and priced by **admin-defined subscription plans**, with
+Stripe-backed **billing** (per-stack metering, idempotent invoicing, optional scheduled
+monthly sweep). See [Project Knowledge Bank & Subscriptions](#project-knowledge-bank--subscriptions).
 
 ## Architecture
 
@@ -48,6 +54,50 @@ backend (`local` now; S3/Azure/GCP stubbed) and are referenced everywhere by `fi
 
 The **mock** provider is enabled by default so the entire flow works with **zero cloud
 credentials**. Enable **bedrock** and provide AWS credentials to use real Claude on Bedrock.
+
+## Project Knowledge Bank & Subscriptions
+
+A separate **`kb-service`** (:8005, schema `img2pmpt_kb`, gateway prefix `/api/kb`) turns
+a customer's generated prompts into searchable, per-project knowledge bases.
+
+**Hierarchy:** Customer → Project → **KB Group** → **Project KB** (one per tech stack).
+A customer picks which generated prompts to ingest; the KB embeds *instruction + prompt +
+metadata* and supports semantic search.
+
+**Pluggable vector stores (8 tech stacks).** Each is lazily wired to its SDK, gated by
+config, and **degrades to an in-process index** when unconfigured (so the flow always
+works) — `backend_ready` flags whether the real backend is live:
+
+| Stack | Backend |
+|---|---|
+| `pgvector` | PostgreSQL (real, the local/test workhorse) |
+| `chroma` | Chroma (real when `chromadb` installed) |
+| `bedrock` | Amazon Bedrock Knowledge Bases (managed RAG over S3) |
+| `opensearch` | AWS OpenSearch k-NN |
+| `mongodb` | MongoDB Atlas Vector Search |
+| `neo4j` | neo4j vector index |
+| `pinecone` | Pinecone serverless |
+| `weaviate` | Weaviate Cloud |
+
+Embeddings use **Amazon Titan** on Bedrock, degrading to a deterministic local embedder
+when boto3/creds are absent. Deleting a KB (or group) purges the external store so a
+provisioned backend never leaks data or keeps counting toward billing.
+
+**Subscriptions (admin-defined).** The **admin portal → Subscriptions** menu creates
+plans that both *gate* which tech stacks a customer may use and *price* each
+(`stacks: [{stack, monthly_cost}]`). A fresh deploy seeds **Starter / Professional /
+Enterprise**. Admins assign a plan to a customer; `kb-service` enforces the gate at
+KB-create time via `admin-service /internal/subscriptions/customer/{id}`.
+
+**Billing (Stripe).** `kb-service` exposes per-stack usage at
+`/internal/usage/customer/{id}`; `customer-service` computes the monthly charge as
+**plan price × the stacks a customer actually provisions** (surfaced on the portal's
+Billing page) and creates a Stripe invoice on demand or via an opt-in **scheduled
+monthly sweep** (`BILLING_SWEEP_ENABLED`). Billing is **idempotent per
+(customer, calendar month)** — a `billing_runs` record prevents double-charging no
+matter how often the action/sweep runs. Without a Stripe key it degrades to a priced
+preview. The gateway refuses to proxy any upstream `/internal/*` path, so these
+service-to-service endpoints aren't reachable from the edge.
 
 ## Service architecture (Python)
 
@@ -150,6 +200,7 @@ Granular controls also exist: `local:containers:*`, `local:services:*`,
 | customer-service           | http://localhost:8002    |
 | ai-adapters                | http://localhost:8003    |
 | image-processing-service   | http://localhost:8004    |
+| kb-service                 | http://localhost:8005    |
 | customer-portal            | http://localhost:4200    |
 | admin-portal               | http://localhost:4300    |
 
@@ -179,6 +230,8 @@ services/
   admin-service/             api/facades/services/dao + dtos; img2pmpt_admin schema
   ai-adapters/               api/facade/service + provider controllers (req/resp)
   image-processing-service/  api/facade(orchestrator)/services/dao; img2pmpt_image schema
+  kb-service/                Project KB: api/facade/services/dao; pluggable vector
+                             stores (8 stacks) + Titan embedder; img2pmpt_kb schema
   <each service>/alembic/    Alembic env + initial migration
 libs/
   img2pmpt-caf-secret/       CAF secrets lib: client (ISecretClient) + provider_impls
@@ -188,9 +241,11 @@ libs/
 portals/
   customer-portal/           Angular — Dashboard (per-request provider pick + project),
                              Connections (cloud drives, mock OAuth), Projects, Prompts,
-                             Preferences, Payment Settings (Stripe), Billing & Receipts
+                             Knowledge Bank (Project KB), Preferences, Payment Settings
+                             (Stripe), Billing & Receipts (subscription charges + invoice)
   admin-portal/              Angular — Dashboard (live analytics), Customer Search/Listing,
-                             Customer Endpoints (per-customer connections), Providers
+                             Customer Endpoints (per-customer connections), Providers,
+                             Subscriptions (plans + per-stack pricing + assignment + reports)
 DevOps/Local/                postgres docker-compose + start/stop/status scripts
 .env.example                 root: single local config source of truth
 package.json                 root: local:* orchestration scripts (no app code)
@@ -207,7 +262,12 @@ cd services/customer-service          && python -m pytest   # signup/login/me, i
 cd services/admin-service             && python -m pytest   # seed admin login, provider toggle
 cd services/ai-adapters               && python -m pytest   # all providers real, graceful w/o SDK
 cd services/image-processing-service  && python -m pytest   # orchestration (stubbed remotes)
+cd services/kb-service                && python -m pytest   # KB CRUD/ingest/query, usage, delete
+cd services/gateway                   && python -m pytest   # rate limit, /internal block, headers
 ```
+
+`admin-service` tests also cover subscription plan CRUD + seeding; `customer-service`
+covers billing computation, invoice idempotency, and the monthly sweep.
 
 ## AWS deployment (CloudFormation + ECS Fargate)
 
@@ -228,13 +288,13 @@ order; **`AWS_1001_All_Destroy_Image2Prompt`** to tear it all down (reverse orde
 | `AWS_002_Setup_Secrets`  | img2pmpt-secrets  | Secrets Manager bundle (`img2pmpt/app`) — the CAF `aws` provider reads it. |
 | `AWS_003_Setup_Database` | img2pmpt-database | RDS PostgreSQL; then patches `DATABASE_URL` into the secret. |
 | `AWS_004_Setup_Registry` | img2pmpt-registry | ECR repos. |
-| `AWS_005_Setup_Compute`  | img2pmpt-compute  | Builds/pushes 5 service images, then ECS cluster + ALB + Cloud Map + services. |
+| `AWS_005_Setup_Compute`  | img2pmpt-compute  | Builds/pushes 6 service images, then ECS cluster + ALB + Cloud Map + services. |
 | `AWS_006_Setup_Portals`  | img2pmpt-portals  | Builds/pushes the portals image, then the portals Fargate service. |
 
 **Runtime shape:** one ALB — `/api/*` → **gateway**, everything else → **portals**
 (one task serving both Angular apps). Internal services talk over **Cloud Map**
 DNS (`*.img2pmpt.local`). Desired counts: gateway 2, customer 1, admin 1,
-**ai-adapters 2**, **image-processing 2**, portals 1 (all CFN parameters).
+**ai-adapters 2**, **image-processing 2**, **kb-service 1**, portals 1 (all CFN parameters).
 Services read JWT/DB/admin secrets at runtime through the CAF `aws` provider (the
 task role can read the secret) — no secrets baked into images. After
 `AWS_005`/`All_Setup`, the workflow log prints the ALB URL.
@@ -245,12 +305,16 @@ task role can read the secret) — no secrets baked into images. After
 
 ## Scope
 
-**Built now:** customer auth + image→prompt generation (10 AI providers; mock offline) + prompt
-listing/search; admin auth + provider management + customer listing/search.
+**Built now:** customer auth + image→prompt generation (10 AI providers; mock offline) +
+prompt listing/search; admin auth + provider management + customer listing/search;
+**Project Knowledge Bank** (8 vector stores, embed + semantic search, delete/cleanup);
+**Subscriptions** (admin plans, per-stack pricing, gating) and **billing** (metering,
+idempotent invoicing, optional monthly sweep).
 
 **Stubbed / wired for later:** real Google Drive/OneDrive/S3/Azure/GCP connections &
 storage; production auth hardening. Connections use mock OAuth (real OAuth swaps
-into connection_provider_service later). All 10 AI providers + Stripe billing are
-implemented with lazy SDKs; they need their respective creds to run live and have
-not been exercised against the real vendor APIs here. Initial Alembic migrations create tables from
-model metadata — future schema changes should be explicit, autogenerated migrations.
+into connection_provider_service later). All 10 AI providers, the 6 managed vector
+stores (pgvector + chroma run locally), and Stripe billing/invoicing are implemented
+with lazy SDKs; they need their respective creds to run live and have **not** been
+exercised against the real vendor APIs here. Initial Alembic migrations create tables
+from model metadata — future schema changes should be explicit, autogenerated migrations.
